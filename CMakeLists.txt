@@ -25,8 +25,13 @@ add_executable(MarkdownReader
         main.cpp
         src/MainWindow.h
         src/MainWindow.cpp
+        src/DocumentTab.h
+        src/DocumentTab.cpp
         src/DocumentBridge.h
+        src/WindowsAssociation.h
+        src/WindowsAssociation.cpp
         resources.qrc
+        resources/app.rc
 )
 
 target_link_libraries(MarkdownReader PRIVATE
@@ -37,6 +42,10 @@ target_link_libraries(MarkdownReader PRIVATE
         Qt6::WebChannel
         Qt6::Network
 )
+
+if (WIN32)
+    target_link_libraries(MarkdownReader PRIVATE shell32)
+endif()
 
 # Automated deployment step to make .exe completely offline and standalone
 if (WIN32)
