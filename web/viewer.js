@@ -1,32 +1,52 @@
-// Initialize Mermaid with high-visibility dark settings
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'dark',
-  securityLevel: 'loose',
-  flowchart: {
-    useMaxWidth: false,
-    htmlLabels: true,
-    curve: 'basis'
-  },
-  sequence: {
-    useMaxWidth: false,
-    showSequenceNumbers: true
-  },
-  themeVariables: {
-    fontSize: '16px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    darkMode: true,
-    background: '#0d1117',
-    primaryColor: '#1f6feb',
-    primaryTextColor: '#f0f6fc',
-    primaryBorderColor: '#388bfd',
-    lineColor: '#58a6ff',
-    secondaryColor: '#238636',
-    tertiaryColor: '#161b22'
-  }
-});
+let currentTheme = 'dark';
+let currentMarkdown = '';
 
-// Configure Marked to use Highlight.js for all languages
+// Configure Mermaid settings based on theme
+function configureMermaid(theme) {
+  const isDark = theme !== 'light';
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: isDark ? 'dark' : 'default',
+    securityLevel: 'loose',
+    flowchart: {
+      useMaxWidth: false,
+      htmlLabels: true,
+      curve: 'basis'
+    },
+    sequence: {
+      useMaxWidth: false,
+      showSequenceNumbers: true
+    },
+    themeVariables: isDark ? {
+      fontSize: '16px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      darkMode: true,
+      background: '#0d1117',
+      primaryColor: '#1f6feb',
+      primaryTextColor: '#f0f6fc',
+      primaryBorderColor: '#388bfd',
+      lineColor: '#58a6ff',
+      secondaryColor: '#238636',
+      tertiaryColor: '#161b22'
+    } : {
+      fontSize: '16px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      darkMode: false,
+      background: '#ffffff',
+      primaryColor: '#0969da',
+      primaryTextColor: '#1f2328',
+      primaryBorderColor: '#0969da',
+      lineColor: '#0969da',
+      secondaryColor: '#2da44e',
+      tertiaryColor: '#f6f8fa'
+    }
+  });
+}
+
+// Initial Mermaid configuration
+configureMermaid(currentTheme);
+
+// Configure Marked to use Highlight.js
 marked.setOptions({
   gfm: true,
   breaks: true,
@@ -46,11 +66,32 @@ marked.setOptions({
   }
 });
 
-// Store diagrams data for modal inspection
+// Store diagrams data for re-rendering and modal
 const diagramRegistry = new Map();
+const diagramStates = new Map();
+
+// Theme switching
+function setTheme(theme) {
+  if (theme !== 'light' && theme !== 'dark') theme = 'dark';
+  currentTheme = theme;
+
+  document.body.className = `theme-${theme}`;
+  const hlLink = document.getElementById('hljs-theme');
+  if (hlLink) {
+    hlLink.href = theme === 'light' ? 'github-light.min.css' : 'github-dark.min.css';
+  }
+
+  configureMermaid(theme);
+
+  // If content is already rendered, re-render to update Mermaid diagram colors
+  if (diagramRegistry.size > 0 && currentMarkdown) {
+    renderMarkdown(currentMarkdown);
+  }
+}
 
 // Main Markdown rendering pipeline
 async function renderMarkdown(markdownText) {
+  currentMarkdown = markdownText || '';
   const container = document.getElementById('content');
   if (!markdownText || !markdownText.trim()) {
     container.innerHTML = `
@@ -63,6 +104,8 @@ async function renderMarkdown(markdownText) {
   }
 
   diagramRegistry.clear();
+  diagramStates.clear();
+
   const tokens = marked.lexer(markdownText);
   let html = '';
   let mermaidCounter = 0;
@@ -77,13 +120,14 @@ async function renderMarkdown(markdownText) {
           <div class="mermaid-toolbar">
             <div class="mermaid-toolbar-title">
               <span>📊 Mermaid Diagram</span>
-              <span class="inline-zoom-badge" id="badge-${diagramId}">100%</span>
+              <span class="inline-zoom-badge" id="badge-${diagramId}">100% (Fit)</span>
             </div>
             <div class="mermaid-toolbar-actions">
-              <button type="button" class="btn-diagram" onclick="zoomDiagram('${diagramId}', 1.2)" title="Zoom In">➕</button>
+              <button type="button" class="btn-diagram" onclick="fitDiagramToViewport('${diagramId}')" title="Fit Entire Diagram in View">⤢ Fit</button>
+              <button type="button" class="btn-diagram" onclick="zoomDiagram('${diagramId}', 1.25)" title="Zoom In">➕</button>
               <button type="button" class="btn-diagram" onclick="zoomDiagram('${diagramId}', 0.8)" title="Zoom Out">➖</button>
-              <button type="button" class="btn-diagram" onclick="resetDiagramZoom('${diagramId}')" title="Reset Zoom">↺ 1:1</button>
-              <button type="button" class="btn-diagram btn-primary" onclick="openModal('${diagramId}')" title="Inspect Detailed Diagram">🔍 Fullscreen Zoom</button>
+              <button type="button" class="btn-diagram" onclick="resetDiagramZoom('${diagramId}')" title="1:1 Native Size">↺ 1:1</button>
+              <button type="button" class="btn-diagram btn-primary" onclick="openModal('${diagramId}')" title="Inspect Fullscreen">🔍 Fullscreen</button>
             </div>
           </div>
           <div class="mermaid-viewport" id="viewport-${diagramId}">
@@ -114,7 +158,7 @@ async function renderMarkdown(markdownText) {
       console.error('Mermaid render error for ' + diagramId, err);
       if (canvas) {
         canvas.innerHTML = `
-          <div style="padding: 16px; color: #f85149; background: #220a0a; border-radius: 6px;">
+          <div style="padding: 16px; color: #f85149; background: rgba(218, 54, 51, 0.15); border-radius: 6px;">
             <b>Mermaid Syntax Error:</b><br>
             <pre style="margin-top: 8px; color: #ff7b72;">${escapeHtml(err.message || String(err))}</pre>
           </div>`;
@@ -129,24 +173,79 @@ function escapeHtml(str) {
   );
 }
 
-// Diagram interactive state management
-const diagramStates = new Map();
-
-function initDiagramInteraction(diagramId) {
+// Fit diagram so 100% of the entire shape is visible on initial load
+function fitDiagramToViewport(diagramId) {
   const viewport = document.getElementById(`viewport-${diagramId}`);
   const canvas = document.getElementById(`canvas-${diagramId}`);
-  const badge = document.getElementById(`badge-${diagramId}`);
   if (!viewport || !canvas) return;
 
-  const state = {
-    scale: 1.0,
+  const svg = canvas.querySelector('svg');
+  if (!svg) return;
+
+  // Unconstrain SVG styling
+  svg.style.maxWidth = 'none';
+  svg.style.display = 'block';
+
+  // Read true SVG bounding box
+  let svgW = 0, svgH = 0;
+  if (svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width > 0) {
+    svgW = svg.viewBox.baseVal.width;
+    svgH = svg.viewBox.baseVal.height;
+  } else {
+    const bbox = svg.getBBox();
+    svgW = bbox.width || 800;
+    svgH = bbox.height || 400;
+  }
+
+  // Available viewport space (with padding)
+  const pad = 36;
+  const vpW = Math.max(viewport.clientWidth - pad, 260);
+
+  // Scale factor to show the entire diagram width
+  let fitScale = 1.0;
+  if (svgW > vpW) {
+    fitScale = vpW / svgW;
+  } else if (svgW < 400) {
+    // If very small, scale up slightly for comfortable readability
+    fitScale = Math.min(vpW / svgW, 1.2);
+  }
+
+  // Dynamically size viewport height to fit diagram height without vertical cutoff
+  const desiredHeight = Math.min(Math.max(svgH * fitScale + 44, 220), 760);
+  viewport.style.height = `${Math.round(desiredHeight)}px`;
+
+  const state = diagramStates.get(diagramId) || {
+    scale: fitScale,
     tx: 0,
     ty: 0,
     isDragging: false,
     startX: 0,
     startY: 0
   };
+  state.scale = fitScale;
+  state.tx = 0;
+  state.ty = 0;
   diagramStates.set(diagramId, state);
+
+  canvas.style.transform = `translate(0px, 0px) scale(${fitScale})`;
+
+  const badge = document.getElementById(`badge-${diagramId}`);
+  if (badge) {
+    badge.textContent = `${Math.round(fitScale * 100)}% (Fit)`;
+  }
+}
+
+// Diagram interactive state management
+function initDiagramInteraction(diagramId) {
+  const viewport = document.getElementById(`viewport-${diagramId}`);
+  const canvas = document.getElementById(`canvas-${diagramId}`);
+  const badge = document.getElementById(`badge-${diagramId}`);
+  if (!viewport || !canvas) return;
+
+  // Perform initial auto-fit to show the entire diagram
+  fitDiagramToViewport(diagramId);
+
+  const state = diagramStates.get(diagramId);
 
   function applyTransform() {
     canvas.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
@@ -159,7 +258,7 @@ function initDiagramInteraction(diagramId) {
   viewport.addEventListener('wheel', (e) => {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.15 : 0.85;
-    state.scale = Math.min(Math.max(state.scale * factor, 0.25), 10.0);
+    state.scale = Math.min(Math.max(state.scale * factor, 0.2), 15.0);
     applyTransform();
   }, { passive: false });
 
@@ -190,7 +289,7 @@ function initDiagramInteraction(diagramId) {
 function zoomDiagram(diagramId, factor) {
   const state = diagramStates.get(diagramId);
   if (!state) return;
-  state.scale = Math.min(Math.max(state.scale * factor, 0.25), 10.0);
+  state.scale = Math.min(Math.max(state.scale * factor, 0.2), 15.0);
   const canvas = document.getElementById(`canvas-${diagramId}`);
   const badge = document.getElementById(`badge-${diagramId}`);
   if (canvas) {
@@ -210,12 +309,19 @@ function resetDiagramZoom(diagramId) {
   const canvas = document.getElementById(`canvas-${diagramId}`);
   const badge = document.getElementById(`badge-${diagramId}`);
   if (canvas) {
-    canvas.style.transform = `translate(0px, 0px) scale(1)`;
+    canvas.style.transform = `translate(0px, 0px) scale(1.0)`;
   }
   if (badge) {
     badge.textContent = '100%';
   }
 }
+
+// Window resize refits diagrams
+window.addEventListener('resize', () => {
+  for (const diagramId of diagramRegistry.keys()) {
+    fitDiagramToViewport(diagramId);
+  }
+});
 
 // ========================================================
 // FULLSCREEN MODAL INSPECTION
@@ -264,12 +370,12 @@ function applyModalTransform() {
 }
 
 function zoomModal(factor) {
-  modalState.scale = Math.min(Math.max(modalState.scale * factor, 0.2), 25.0);
+  modalState.scale = Math.min(Math.max(modalState.scale * factor, 0.2), 30.0);
   applyModalTransform();
 }
 
 function resetModalZoom() {
-  modalState.scale = 1.5; // Start nicely enlarged
+  modalState.scale = 1.5;
   modalState.tx = 0;
   modalState.ty = 0;
   applyModalTransform();
@@ -280,7 +386,7 @@ const modalViewport = document.getElementById('modal-viewport');
 modalViewport.addEventListener('wheel', (e) => {
   e.preventDefault();
   const factor = e.deltaY < 0 ? 1.18 : 0.82;
-  modalState.scale = Math.min(Math.max(modalState.scale * factor, 0.2), 25.0);
+  modalState.scale = Math.min(Math.max(modalState.scale * factor, 0.2), 30.0);
   applyModalTransform();
 }, { passive: false });
 
@@ -320,9 +426,19 @@ function setupChannel() {
   new QWebChannel(qt.webChannelTransport, function(channel) {
     window.bridge = channel.objects.bridge;
     if (window.bridge) {
+      // Connect markdown content signal
       window.bridge.markdownContentChanged.connect(function(newMarkdown) {
         renderMarkdown(newMarkdown);
       });
+      // Connect theme changed signal
+      window.bridge.themeChanged.connect(function(newTheme) {
+        setTheme(newTheme);
+      });
+
+      // Initialize with bridge properties
+      if (window.bridge.theme) {
+        setTheme(window.bridge.theme);
+      }
       if (window.bridge.markdownContent) {
         renderMarkdown(window.bridge.markdownContent);
       }
