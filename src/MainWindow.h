@@ -21,8 +21,10 @@ public:
 
     void openFile(const QString &filePath);
     void openFiles(const QStringList &filePaths);
+    void bringToFront();
 
 protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
 

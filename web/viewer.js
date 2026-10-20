@@ -446,4 +446,8 @@ function setupChannel() {
   });
 }
 
+// Prevent default drag/drop behavior in browser so Qt event filter captures files cleanly
+window.addEventListener('dragover', (e) => { e.preventDefault(); }, false);
+window.addEventListener('drop', (e) => { e.preventDefault(); }, false);
+
 document.addEventListener('DOMContentLoaded', setupChannel);

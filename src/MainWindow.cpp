@@ -1,6 +1,10 @@
 #include "MainWindow.h"
 #include "WindowsAssociation.h"
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 #include <QGuiApplication>
 #include <QStyleHints>
 #include <QFileDialog>
@@ -56,6 +60,9 @@ void MainWindow::setupUI() {
 
     connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &MainWindow::closeTab);
     connect(m_tabWidget, &QTabWidget::currentChanged, this, &MainWindow::onCurrentTabChanged);
+
+    // Install application-wide event filter so drag & drop works over all child widgets and WebEngine
+    qApp->installEventFilter(this);
 
     // Initial empty welcome tab
     createNewTab();
@@ -452,6 +459,48 @@ void MainWindow::showAbout() {
     );
 }
 
+bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::DragEnter) {
+        auto *de = static_cast<QDragEnterEvent*>(event);
+        if (de->mimeData()->hasUrls()) {
+            de->acceptProposedAction();
+            return true;
+        }
+    } else if (event->type() == QEvent::DragMove) {
+        auto *dm = static_cast<QDragMoveEvent*>(event);
+        if (dm->mimeData()->hasUrls()) {
+            dm->acceptProposedAction();
+            return true;
+        }
+    } else if (event->type() == QEvent::Drop) {
+        auto *de = static_cast<QDropEvent*>(event);
+        const auto urls = de->mimeData()->urls();
+        QStringList filePaths;
+        for (const auto &url : urls) {
+            if (url.isLocalFile()) {
+                filePaths << url.toLocalFile();
+            }
+        }
+        if (!filePaths.isEmpty()) {
+            openFiles(filePaths);
+            de->acceptProposedAction();
+            return true;
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
+void MainWindow::bringToFront() {
+    showNormal();
+    raise();
+    activateWindow();
+#ifdef Q_OS_WIN
+    HWND hwnd = reinterpret_cast<HWND>(winId());
+    ShowWindow(hwnd, SW_RESTORE);
+    SetForegroundWindow(hwnd);
+#endif
+}
+
 void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
     if (event->mimeData()->hasUrls()) {
         event->acceptProposedAction();
@@ -470,3 +519,4 @@ void MainWindow::dropEvent(QDropEvent *event) {
         openFiles(filePaths);
     }
 }
+
