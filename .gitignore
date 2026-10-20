@@ -1,5 +1,7 @@
 # Build artifacts
 /build/
+/build-linux/
+/dist/
 /cmake-build-*/
 /out/
 CMakeUserPresets.json

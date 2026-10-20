@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(MarkdownReader LANGUAGES CXX)
+project(MarkdownReader VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -7,8 +7,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# Default to local Qt installation if CMAKE_PREFIX_PATH not provided
-if(NOT DEFINED CMAKE_PREFIX_PATH AND EXISTS "D:/Qt/6.8.0/msvc2022_64")
+# Default to local Qt installation on Windows if CMAKE_PREFIX_PATH not provided
+if(WIN32 AND NOT DEFINED CMAKE_PREFIX_PATH AND EXISTS "D:/Qt/6.8.0/msvc2022_64")
     set(CMAKE_PREFIX_PATH "D:/Qt/6.8.0/msvc2022_64")
 endif()
 
@@ -20,6 +20,11 @@ find_package(Qt6 COMPONENTS
         WebChannel
         Network
         REQUIRED)
+
+set(PLATFORM_SOURCES "")
+if (WIN32)
+    list(APPEND PLATFORM_SOURCES resources/app.rc)
+endif()
 
 add_executable(MarkdownReader
         main.cpp
@@ -33,7 +38,7 @@ add_executable(MarkdownReader
         src/SingleInstance.h
         src/SingleInstance.cpp
         resources.qrc
-        resources/app.rc
+        ${PLATFORM_SOURCES}
 )
 
 target_link_libraries(MarkdownReader PRIVATE
