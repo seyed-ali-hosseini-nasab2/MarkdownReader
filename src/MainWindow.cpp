@@ -1,11 +1,10 @@
 #include "MainWindow.h"
+#include "WindowsAssociation.h"
 
-#include <QWebEnginePage>
-#include <QWebChannel>
+#include <QGuiApplication>
+#include <QStyleHints>
 #include <QFileDialog>
-#include <QFile>
 #include <QFileInfo>
-#include <QTextStream>
 #include <QMenuBar>
 #include <QToolBar>
 #include <QStatusBar>
@@ -13,128 +12,434 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QMessageBox>
-#include <QUrl>
-#include <QKeySequence>
+#include <QSettings>
+#include <QIcon>
+#include <QTabBar>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
-      m_webView(new QWebEngineView(this)),
-      m_bridge(new DocumentBridge(this)) {
+      m_tabWidget(new QTabWidget(this)) {
     setupUI();
-    setupWebEngine();
+    setupMenus();
 
+    // Listen to OS system theme changes dynamically
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
+        if (m_themeMode == ThemeMode::System) {
+            updateTheme();
+        }
+    });
+
+    // Load saved theme preference
+    QSettings settings("MarkdownEngine", "MarkdownReader");
+    int savedTheme = settings.value("themeMode", static_cast<int>(ThemeMode::System)).toInt();
+    if (savedTheme == static_cast<int>(ThemeMode::Dark)) {
+        m_darkThemeAct->setChecked(true);
+        setThemeMode(ThemeMode::Dark);
+    } else if (savedTheme == static_cast<int>(ThemeMode::Light)) {
+        m_lightThemeAct->setChecked(true);
+        setThemeMode(ThemeMode::Light);
+    } else {
+        m_systemThemeAct->setChecked(true);
+        setThemeMode(ThemeMode::System);
+    }
+
+    setWindowIcon(QIcon(":/resources/app_icon.png"));
     setAcceptDrops(true);
-    resize(1280, 860);
-    setWindowTitle("Markdown & Mermaid Reader");
+    resize(1320, 880);
 }
 
 void MainWindow::setupUI() {
-    setCentralWidget(m_webView);
+    m_tabWidget->setTabsClosable(true);
+    m_tabWidget->setMovable(true);
+    m_tabWidget->setDocumentMode(true);
+    setCentralWidget(m_tabWidget);
 
-    // Menu Bar
+    connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &MainWindow::closeTab);
+    connect(m_tabWidget, &QTabWidget::currentChanged, this, &MainWindow::onCurrentTabChanged);
+
+    // Initial empty welcome tab
+    createNewTab();
+    statusBar()->showMessage("Ready. Open .md files or drag and drop into the window.");
+}
+
+void MainWindow::setupMenus() {
+    // File Menu
     auto *fileMenu = menuBar()->addMenu("&File");
-    auto *openAct = fileMenu->addAction("&Open File...", this, &MainWindow::openFileDialog, QKeySequence::Open);
-    auto *reloadAct = fileMenu->addAction("&Reload", this, &MainWindow::reloadCurrentFile, QKeySequence::Refresh);
+    auto *openAct = fileMenu->addAction("&Open File(s)...", this, &MainWindow::openFileDialog, QKeySequence::Open);
+    auto *closeTabAct = fileMenu->addAction("&Close Tab", this, &MainWindow::closeCurrentTab, QKeySequence(Qt::CTRL | Qt::Key_W));
+    auto *reloadAct = fileMenu->addAction("&Reload Document", this, &MainWindow::reloadCurrentTab, QKeySequence::Refresh);
     fileMenu->addSeparator();
     fileMenu->addAction("E&xit", this, &QWidget::close, QKeySequence::Quit);
 
+    // View Menu
     auto *viewMenu = menuBar()->addMenu("&View");
+    auto *themeMenu = viewMenu->addMenu("&Theme");
+
+    m_themeActionGroup = new QActionGroup(this);
+    m_systemThemeAct = themeMenu->addAction("System Default", [this]() { setThemeMode(ThemeMode::System); });
+    m_darkThemeAct = themeMenu->addAction("Dark Theme", [this]() { setThemeMode(ThemeMode::Dark); });
+    m_lightThemeAct = themeMenu->addAction("Light Theme", [this]() { setThemeMode(ThemeMode::Light); });
+
+    m_systemThemeAct->setCheckable(true);
+    m_darkThemeAct->setCheckable(true);
+    m_lightThemeAct->setCheckable(true);
+    m_themeActionGroup->addAction(m_systemThemeAct);
+    m_themeActionGroup->addAction(m_darkThemeAct);
+    m_themeActionGroup->addAction(m_lightThemeAct);
+
+    viewMenu->addSeparator();
     viewMenu->addAction("Zoom &In", this, &MainWindow::zoomIn, QKeySequence::ZoomIn);
     viewMenu->addAction("Zoom &Out", this, &MainWindow::zoomOut, QKeySequence::ZoomOut);
     viewMenu->addAction("&Reset Zoom", this, &MainWindow::resetZoom, QKeySequence(Qt::CTRL | Qt::Key_0));
 
+    // Tools Menu
+    auto *toolsMenu = menuBar()->addMenu("&Tools");
+    toolsMenu->addAction("Set as Default Markdown (.md) Viewer...", this, &MainWindow::registerFileAssociation);
+
+    // Help Menu
     auto *helpMenu = menuBar()->addMenu("&Help");
     helpMenu->addAction("&About Markdown Reader", this, &MainWindow::showAbout);
 
     // Toolbar
-    auto *toolbar = addToolBar("Navigation");
+    auto *toolbar = addToolBar("Controls");
     toolbar->setMovable(false);
     toolbar->addAction(openAct);
     toolbar->addAction(reloadAct);
-
-    statusBar()->showMessage("Ready. Open a .md file or drag & drop one into the window.");
+    toolbar->addAction(closeTabAct);
 }
 
-void MainWindow::setupWebEngine() {
-    auto *channel = new QWebChannel(this);
-    channel->registerObject(QStringLiteral("bridge"), m_bridge);
-    m_webView->page()->setWebChannel(channel);
+DocumentTab* MainWindow::currentDocumentTab() const {
+    return qobject_cast<DocumentTab*>(m_tabWidget->currentWidget());
+}
 
-    // Load bundled offline html viewer from Qt resource
-    m_webView->setUrl(QUrl("qrc:/web/viewer.html"));
+DocumentTab* MainWindow::createNewTab(const QString &filePath) {
+    auto *tab = new DocumentTab(this);
+    tab->setTheme(effectiveTheme());
+
+    connect(tab, &DocumentTab::fileLoaded, this, [this, tab](const QString &path) {
+        int idx = m_tabWidget->indexOf(tab);
+        if (idx != -1) {
+            QFileInfo info(path);
+            m_tabWidget->setTabText(idx, info.fileName());
+            m_tabWidget->setTabToolTip(idx, path);
+            if (m_tabWidget->currentIndex() == idx) {
+                setWindowTitle(info.fileName() + " - Markdown & Mermaid Reader");
+            }
+        }
+    });
+
+    connect(tab, &DocumentTab::fileModified, this, [this](const QString &path) {
+        statusBar()->showMessage("Live updated: " + QFileInfo(path).fileName(), 2000);
+    });
+
+    int index = m_tabWidget->addTab(tab, filePath.isEmpty() ? "Welcome" : QFileInfo(filePath).fileName());
+    if (!filePath.isEmpty()) {
+        m_tabWidget->setTabToolTip(index, filePath);
+        tab->loadFile(filePath);
+    }
+    m_tabWidget->setCurrentIndex(index);
+    return tab;
+}
+
+void MainWindow::openFile(const QString &filePath) {
+    if (filePath.isEmpty()) return;
+
+    // Check if file is already open in an existing tab
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        auto *tab = qobject_cast<DocumentTab*>(m_tabWidget->widget(i));
+        if (tab && tab->filePath() == filePath) {
+            m_tabWidget->setCurrentIndex(i);
+            return;
+        }
+    }
+
+    // If only one empty tab is open, reuse it
+    if (m_tabWidget->count() == 1) {
+        auto *firstTab = qobject_cast<DocumentTab*>(m_tabWidget->widget(0));
+        if (firstTab && firstTab->isEmpty()) {
+            firstTab->loadFile(filePath);
+            m_tabWidget->setTabText(0, QFileInfo(filePath).fileName());
+            m_tabWidget->setTabToolTip(0, filePath);
+            setWindowTitle(QFileInfo(filePath).fileName() + " - Markdown & Mermaid Reader");
+            return;
+        }
+    }
+
+    createNewTab(filePath);
+}
+
+void MainWindow::openFiles(const QStringList &filePaths) {
+    for (const auto &path : filePaths) {
+        openFile(path);
+    }
 }
 
 void MainWindow::openFileDialog() {
-    QString path = QFileDialog::getOpenFileName(
+    QStringList paths = QFileDialog::getOpenFileNames(
         this,
-        "Open Markdown File",
+        "Open Markdown File(s)",
         QString(),
         "Markdown Files (*.md *.markdown *.mdown);;All Files (*.*)"
     );
 
-    if (!path.isEmpty()) {
-        loadMarkdownFile(path);
+    if (!paths.isEmpty()) {
+        openFiles(paths);
     }
 }
 
-void MainWindow::loadMarkdownFile(const QString &filePath) {
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QMessageBox::critical(this, "Error Opening File", "Failed to open file:\n" + file.errorString());
-        return;
-    }
+void MainWindow::closeTab(int index) {
+    if (index < 0 || index >= m_tabWidget->count()) return;
 
-    QTextStream stream(&file);
-    stream.setEncoding(QStringConverter::Utf8);
-    QString content = stream.readAll();
-    file.close();
+    QWidget *widget = m_tabWidget->widget(index);
+    m_tabWidget->removeTab(index);
+    delete widget;
 
-    // Hot-reload watching
-    if (!m_currentFilePath.isEmpty()) {
-        m_fileWatcher.removePath(m_currentFilePath);
-    }
-    m_currentFilePath = filePath;
-    m_fileWatcher.addPath(filePath);
-    connect(&m_fileWatcher, &QFileSystemWatcher::fileChanged, this, &MainWindow::onFileModified, Qt::UniqueConnection);
-
-    // Send content to JavaScript viewer
-    m_bridge->setMarkdown(content);
-
-    QFileInfo info(filePath);
-    setWindowTitle(info.fileName() + " - Markdown & Mermaid Reader");
-    statusBar()->showMessage("Loaded: " + filePath);
-}
-
-void MainWindow::reloadCurrentFile() {
-    if (!m_currentFilePath.isEmpty() && QFile::exists(m_currentFilePath)) {
-        loadMarkdownFile(m_currentFilePath);
-        statusBar()->showMessage("Reloaded: " + m_currentFilePath, 2500);
+    if (m_tabWidget->count() == 0) {
+        createNewTab();
+        setWindowTitle("Markdown & Mermaid Reader");
     }
 }
 
-void MainWindow::onFileModified(const QString &path) {
-    if (QFile::exists(path)) {
-        loadMarkdownFile(path);
-        statusBar()->showMessage("Live update: file modified externally.", 2500);
+void MainWindow::closeCurrentTab() {
+    closeTab(m_tabWidget->currentIndex());
+}
+
+void MainWindow::reloadCurrentTab() {
+    auto *tab = currentDocumentTab();
+    if (tab) {
+        tab->reload();
+        statusBar()->showMessage("Reloaded document.", 2000);
     }
+}
+
+void MainWindow::onCurrentTabChanged(int index) {
+    if (index >= 0 && index < m_tabWidget->count()) {
+        auto *tab = qobject_cast<DocumentTab*>(m_tabWidget->widget(index));
+        if (tab && !tab->isEmpty()) {
+            setWindowTitle(tab->fileName() + " - Markdown & Mermaid Reader");
+            statusBar()->showMessage("Viewing: " + tab->filePath());
+            return;
+        }
+    }
+    setWindowTitle("Markdown & Mermaid Reader");
 }
 
 void MainWindow::zoomIn() {
-    m_currentZoomFactor = qMin(m_currentZoomFactor + 0.1, 3.0);
-    m_webView->setZoomFactor(m_currentZoomFactor);
-    statusBar()->showMessage(QString("Page Zoom: %1%").arg(static_cast<int>(m_currentZoomFactor * 100)), 1500);
+    auto *tab = currentDocumentTab();
+    if (tab) {
+        qreal z = qMin(tab->zoomFactor() + 0.1, 3.0);
+        tab->setZoomFactor(z);
+        statusBar()->showMessage(QString("Page Zoom: %1%").arg(static_cast<int>(z * 100)), 1500);
+    }
 }
 
 void MainWindow::zoomOut() {
-    m_currentZoomFactor = qMax(m_currentZoomFactor - 0.1, 0.4);
-    m_webView->setZoomFactor(m_currentZoomFactor);
-    statusBar()->showMessage(QString("Page Zoom: %1%").arg(static_cast<int>(m_currentZoomFactor * 100)), 1500);
+    auto *tab = currentDocumentTab();
+    if (tab) {
+        qreal z = qMax(tab->zoomFactor() - 0.1, 0.4);
+        tab->setZoomFactor(z);
+        statusBar()->showMessage(QString("Page Zoom: %1%").arg(static_cast<int>(z * 100)), 1500);
+    }
 }
 
 void MainWindow::resetZoom() {
-    m_currentZoomFactor = 1.0;
-    m_webView->setZoomFactor(1.0);
-    statusBar()->showMessage("Page Zoom: 100%", 1500);
+    auto *tab = currentDocumentTab();
+    if (tab) {
+        tab->setZoomFactor(1.0);
+        statusBar()->showMessage("Page Zoom: 100%", 1500);
+    }
+}
+
+QString MainWindow::effectiveTheme() const {
+    if (m_themeMode == ThemeMode::Dark) return "dark";
+    if (m_themeMode == ThemeMode::Light) return "light";
+
+    // System mode: read from OS
+    auto scheme = QGuiApplication::styleHints()->colorScheme();
+    return (scheme == Qt::ColorScheme::Light) ? "light" : "dark";
+}
+
+void MainWindow::setThemeMode(ThemeMode mode) {
+    m_themeMode = mode;
+    QSettings settings("MarkdownEngine", "MarkdownReader");
+    settings.setValue("themeMode", static_cast<int>(mode));
+    updateTheme();
+}
+
+void MainWindow::updateTheme() {
+    QString theme = effectiveTheme();
+    applyApplicationStyle(theme);
+
+    // Propagate theme to all open tabs
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        auto *tab = qobject_cast<DocumentTab*>(m_tabWidget->widget(i));
+        if (tab) {
+            tab->setTheme(theme);
+        }
+    }
+}
+
+void MainWindow::applyApplicationStyle(const QString &theme) {
+    if (theme == "light") {
+        setStyleSheet(R"(
+            QMainWindow {
+                background-color: #f6f8fa;
+                color: #1f2328;
+            }
+            QMenuBar {
+                background-color: #ffffff;
+                color: #1f2328;
+                border-bottom: 1px solid #d0d7de;
+                padding: 2px;
+            }
+            QMenuBar::item:selected {
+                background-color: #eaeef2;
+                border-radius: 4px;
+            }
+            QMenu {
+                background-color: #ffffff;
+                color: #1f2328;
+                border: 1px solid #d0d7de;
+            }
+            QMenu::item:selected {
+                background-color: #0969da;
+                color: #ffffff;
+            }
+            QToolBar {
+                background-color: #ffffff;
+                border-bottom: 1px solid #d0d7de;
+                spacing: 6px;
+                padding: 4px;
+            }
+            QToolButton {
+                background-color: transparent;
+                color: #1f2328;
+                border-radius: 4px;
+                padding: 5px 10px;
+                font-weight: 500;
+            }
+            QToolButton:hover {
+                background-color: #eaeef2;
+            }
+            QTabWidget::pane {
+                border-top: 1px solid #d0d7de;
+                background-color: #ffffff;
+            }
+            QTabBar::tab {
+                background-color: #eaeef2;
+                color: #57606a;
+                border: 1px solid #d0d7de;
+                border-bottom: none;
+                border-top-left-radius: 6px;
+                border-top-right-left: 6px;
+                padding: 8px 16px;
+                margin-right: 2px;
+                font-size: 13px;
+            }
+            QTabBar::tab:selected {
+                background-color: #ffffff;
+                color: #0969da;
+                font-weight: bold;
+                border-top: 2px solid #0969da;
+            }
+            QTabBar::tab:hover:!selected {
+                background-color: #f3f4f6;
+            }
+            QStatusBar {
+                background-color: #ffffff;
+                color: #57606a;
+                border-top: 1px solid #d0d7de;
+            }
+        )");
+    } else {
+        // Dark theme
+        setStyleSheet(R"(
+            QMainWindow {
+                background-color: #0d1117;
+                color: #c9d1d9;
+            }
+            QMenuBar {
+                background-color: #161b22;
+                color: #c9d1d9;
+                border-bottom: 1px solid #30363d;
+                padding: 2px;
+            }
+            QMenuBar::item:selected {
+                background-color: #21262d;
+                border-radius: 4px;
+            }
+            QMenu {
+                background-color: #161b22;
+                color: #c9d1d9;
+                border: 1px solid #30363d;
+            }
+            QMenu::item:selected {
+                background-color: #1f6feb;
+                color: #ffffff;
+            }
+            QToolBar {
+                background-color: #161b22;
+                border-bottom: 1px solid #30363d;
+                spacing: 6px;
+                padding: 4px;
+            }
+            QToolButton {
+                background-color: transparent;
+                color: #c9d1d9;
+                border-radius: 4px;
+                padding: 5px 10px;
+                font-weight: 500;
+            }
+            QToolButton:hover {
+                background-color: #21262d;
+            }
+            QTabWidget::pane {
+                border-top: 1px solid #30363d;
+                background-color: #0d1117;
+            }
+            QTabBar::tab {
+                background-color: #161b22;
+                color: #8b949e;
+                border: 1px solid #30363d;
+                border-bottom: none;
+                border-top-left-radius: 6px;
+                border-top-right-left: 6px;
+                padding: 8px 16px;
+                margin-right: 2px;
+                font-size: 13px;
+            }
+            QTabBar::tab:selected {
+                background-color: #0d1117;
+                color: #58a6ff;
+                font-weight: bold;
+                border-top: 2px solid #58a6ff;
+            }
+            QTabBar::tab:hover:!selected {
+                background-color: #21262d;
+            }
+            QStatusBar {
+                background-color: #161b22;
+                color: #8b949e;
+                border-top: 1px solid #30363d;
+            }
+        )");
+    }
+}
+
+void MainWindow::registerFileAssociation() {
+    bool ok = WindowsAssociation::registerAssociation();
+    if (ok) {
+        QMessageBox::information(
+            this,
+            "File Association Registered",
+            "<h3>Markdown Reader Registered Successfully!</h3>"
+            "<p>Markdown Reader has been registered in Windows for <b>.md</b> and <b>.markdown</b> files.</p>"
+            "<p>It is now available in the Windows <i>'Open with'</i> menu and can be chosen as the default application.</p>"
+        );
+        statusBar()->showMessage("Registered as Windows .md file handler.", 3000);
+    } else {
+        QMessageBox::warning(this, "Association Error", "Failed to register file association in Windows registry.");
+    }
 }
 
 void MainWindow::showAbout() {
@@ -142,23 +447,26 @@ void MainWindow::showAbout() {
         this,
         "About Markdown Reader",
         "<h3>Markdown & Mermaid Reader</h3>"
-        "<p>High-performance offline Markdown viewer with interactive Mermaid vector diagram zoom & pan support.</p>"
+        "<p>Professional desktop Markdown viewer with tabbed navigation, system dark/light theme support, and interactive vector Mermaid diagram zoom & pan.</p>"
         "<p>Built with C++, Qt 6.8 WebEngine, marked, and mermaid.js.</p>"
     );
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
     if (event->mimeData()->hasUrls()) {
-        const auto urls = event->mimeData()->urls();
-        if (!urls.isEmpty() && urls.first().isLocalFile()) {
-            event->acceptProposedAction();
-        }
+        event->acceptProposedAction();
     }
 }
 
 void MainWindow::dropEvent(QDropEvent *event) {
     const auto urls = event->mimeData()->urls();
-    if (!urls.isEmpty() && urls.first().isLocalFile()) {
-        loadMarkdownFile(urls.first().toLocalFile());
+    QStringList filePaths;
+    for (const auto &url : urls) {
+        if (url.isLocalFile()) {
+            filePaths << url.toLocalFile();
+        }
+    }
+    if (!filePaths.isEmpty()) {
+        openFiles(filePaths);
     }
 }

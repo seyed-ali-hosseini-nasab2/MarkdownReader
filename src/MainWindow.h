@@ -1,10 +1,16 @@
 #pragma once
 
 #include <QMainWindow>
-#include <QWebEngineView>
-#include <QFileSystemWatcher>
+#include <QTabWidget>
 #include <QString>
-#include "DocumentBridge.h"
+#include <QActionGroup>
+#include "DocumentTab.h"
+
+enum class ThemeMode {
+    System,
+    Dark,
+    Light
+};
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -13,7 +19,8 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override = default;
 
-    void loadMarkdownFile(const QString &filePath);
+    void openFile(const QString &filePath);
+    void openFiles(const QStringList &filePaths);
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
@@ -21,20 +28,30 @@ protected:
 
 private slots:
     void openFileDialog();
-    void reloadCurrentFile();
-    void onFileModified(const QString &path);
+    void closeTab(int index);
+    void closeCurrentTab();
+    void reloadCurrentTab();
+    void onCurrentTabChanged(int index);
     void zoomIn();
     void zoomOut();
     void resetZoom();
+    void setThemeMode(ThemeMode mode);
+    void updateTheme();
+    void registerFileAssociation();
     void showAbout();
 
 private:
     void setupUI();
-    void setupWebEngine();
+    void setupMenus();
+    void applyApplicationStyle(const QString &theme);
+    QString effectiveTheme() const;
+    DocumentTab* currentDocumentTab() const;
+    DocumentTab* createNewTab(const QString &filePath = QString());
 
-    QWebEngineView *m_webView{nullptr};
-    DocumentBridge *m_bridge{nullptr};
-    QFileSystemWatcher m_fileWatcher;
-    QString m_currentFilePath;
-    qreal m_currentZoomFactor{1.0};
+    QTabWidget *m_tabWidget{nullptr};
+    ThemeMode m_themeMode{ThemeMode::System};
+    QActionGroup *m_themeActionGroup{nullptr};
+    QAction *m_systemThemeAct{nullptr};
+    QAction *m_darkThemeAct{nullptr};
+    QAction *m_lightThemeAct{nullptr};
 };
