@@ -30,6 +30,8 @@ add_executable(MarkdownReader
         src/DocumentBridge.h
         src/WindowsAssociation.h
         src/WindowsAssociation.cpp
+        src/SingleInstance.h
+        src/SingleInstance.cpp
         resources.qrc
         resources/app.rc
 )
