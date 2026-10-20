@@ -16,40 +16,42 @@ find_package(Qt6 COMPONENTS
         Core
         Gui
         Widgets
+        WebEngineWidgets
+        WebChannel
+        Network
         REQUIRED)
 
-add_executable(MarkdownReader main.cpp)
-target_link_libraries(MarkdownReader
-        Qt::Core
-        Qt::Gui
-        Qt::Widgets
+add_executable(MarkdownReader
+        main.cpp
+        src/MainWindow.h
+        src/MainWindow.cpp
+        src/DocumentBridge.h
+        resources.qrc
 )
 
-if (WIN32 AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-    set(DEBUG_SUFFIX)
-    if (MSVC AND CMAKE_BUILD_TYPE MATCHES "Debug")
-        set(DEBUG_SUFFIX "d")
-    endif ()
-    set(QT_INSTALL_PATH "${CMAKE_PREFIX_PATH}")
-    if (NOT EXISTS "${QT_INSTALL_PATH}/bin")
-        set(QT_INSTALL_PATH "${QT_INSTALL_PATH}/..")
-        if (NOT EXISTS "${QT_INSTALL_PATH}/bin")
-            set(QT_INSTALL_PATH "${QT_INSTALL_PATH}/..")
-        endif ()
-    endif ()
-    if (EXISTS "${QT_INSTALL_PATH}/plugins/platforms/qwindows${DEBUG_SUFFIX}.dll")
+target_link_libraries(MarkdownReader PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::WebEngineWidgets
+        Qt6::WebChannel
+        Qt6::Network
+)
+
+# Automated deployment step to make .exe completely offline and standalone
+if (WIN32)
+    get_target_property(QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
+    find_program(WINDEPLOYQT_EXE windeployqt HINTS "${QT_BIN_DIR}")
+
+    if (WINDEPLOYQT_EXE)
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E make_directory
-                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/platforms/")
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
-                "${QT_INSTALL_PATH}/plugins/platforms/qwindows${DEBUG_SUFFIX}.dll"
-                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/plugins/platforms/")
-    endif ()
-    foreach (QT_LIB Core Gui Widgets)
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
-                "${QT_INSTALL_PATH}/bin/Qt6${QT_LIB}${DEBUG_SUFFIX}.dll"
-                "$<TARGET_FILE_DIR:${PROJECT_NAME}>")
-    endforeach (QT_LIB)
-endif ()
+            COMMAND "${WINDEPLOYQT_EXE}"
+                    --no-translations
+                    --compiler-runtime
+                    "$<TARGET_FILE:${PROJECT_NAME}>"
+            COMMENT "Running windeployqt to deploy runtime dependencies for offline execution..."
+        )
+    endif()
+endif()
+
