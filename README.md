@@ -38,11 +38,18 @@ Equipped with an embedded Chromium engine via Qt WebEngine, it delivers pixel-pe
 
 ## Features
 
-- ⚡ **100% Self-Contained & Offline:** All parsers, styling engines, and diagram libraries (`marked`, `highlight.js`, `mermaid.js`, `qwebchannel`) are embedded directly into the binary through Qt resources (`resources.qrc`). No internet telemetry, zero external CDN requests.
+- ⚡ **100% Self-Contained & Offline:** All parsers, styling engines, and rendering libraries (`marked`, `highlight.js`, `mermaid.js`, `katex`, `qwebchannel`) are embedded directly into the binary through Qt resources (`resources.qrc`). No internet telemetry, zero external CDN requests.
+- 🧮 **LaTeX & Mathematical Formula Rendering (KaTeX):**
+  - High-speed offline rendering of mathematical notation using embedded KaTeX v0.16.11 and bundled vector fonts.
+  - Supports inline math (`$...$`), display/block math (`$$...$$`), and fenced math blocks (```` ```math ````).
+  - Handles complex matrices, integrals, fractions, roots, Greek characters, and formulas nested inside bold text (`**$...$**`).
 - 📊 **Interactive Mermaid Canvas:**
   - Full support for Flowcharts, Sequence Diagrams, State Machines, Class Diagrams, Git Graphs, Entity-Relationship diagrams, and Mindmaps.
   - **Auto-Fit Engine:** Automatically computes diagram bounding boxes and viewBox dimensions so diagrams are displayed in full upon initial load without clipped edges.
   - **Smooth Zoom & Pan:** Native mouse-wheel scaling, click-and-drag viewport panning, and a dedicated modal inspection viewer with up to 30x magnification.
+- 🔗 **Smart Hyperlink & File Navigation:**
+  - Clicking relative Markdown links (e.g., `[Persian Guide](README_fa.md)`) automatically resolves the relative path and opens the destination file in a new tab within the same window.
+  - External web URLs (`https://...`) open securely in your default desktop browser.
 - 📑 **Multi-Tab Workspace:** Open multiple `.md` files concurrently across independent tabs. Each tab features isolated scroll state, zoom level, and file monitoring.
 - 🔄 **Live Hot-Reload:** Powered by `QFileSystemWatcher`. Edits made in external editors (VS Code, Neovim, Obsidian, Notepad) refresh instantaneously without losing your reading position or viewport zoom.
 - 🎨 **Adaptive Dark & Light Themes:**
@@ -62,7 +69,7 @@ Pre-built standalone releases for **v1.0.0** are available under the [GitHub Rel
 
 | Platform | Architecture | Package Format | Details |
 | :--- | :--- | :--- | :--- |
-| **Windows** | x86_64 / x64 | `.zip` archive | Fully self-contained (`windeployqt` deployed, portable, no installation required). |
+| **Windows** | x86_64 / x64 | `.zip` archive | Fully self-contained (`windeployqt` deployed, portable, no installation required). Includes `VC_redist.x64.exe` installer for machines without MSVC runtimes. |
 | **Linux** | x86_64 | `.tar.gz` archive | Native ELF binary compatible with modern desktop distributions (Ubuntu 22.04+, Debian 12+, Fedora, Arch). |
 
 ---
@@ -80,7 +87,7 @@ graph TD
     DocTab -->|Watches File| Watcher["QFileSystemWatcher"]
     DocTab -->|Embeds| WebEngine["QWebEngineView"]
     WebEngine <-->|Bi-directional IPC| Bridge["DocumentBridge (QWebChannel)"]
-    Bridge <-->|HTML / JS Runtime| Frontend["Viewer Engine (marked + highlight.js + mermaid)"]
+    Bridge <-->|HTML / JS Runtime| Frontend["Viewer Engine (marked + highlight.js + mermaid + katex)"]
 ```
 
 ### Source Tree Structure
@@ -91,23 +98,30 @@ MarkdownReader/
 ├── CMakePresets.json           # Presets for Ninja and MSVC 2022
 ├── main.cpp                    # Application entry point, CLI parser, and IPC guard
 ├── resources.qrc               # Embedded offline assets (HTML, CSS, JS, Fonts)
-├── sample.md                   # Comprehensive Markdown and Mermaid showcase
+├── sample.md                   # Comprehensive Markdown, Mermaid & Math showcase
 ├── .github/
 │   └── workflows/
 │       └── release.yml         # Automated GitHub Actions multi-platform release CI/CD
+├── redist/
+│   └── VC_redist.x64.exe       # Official Microsoft Visual C++ runtime installer (Windows)
 ├── resources/
 │   ├── app.rc                  # Windows PE resource script with version & icon
 │   ├── app_icon.ico            # Multi-size Windows application icon
-│   ├── app_icon.png            # PNG logo asset
+│   └── app_icon.png            # PNG logo asset
+├── web/
 │   ├── viewer.html             # Embedded viewer DOM structure
 │   ├── viewer.css              # Typography, dark/light theme definitions, zoom canvas
-│   ├── viewer.js               # Marked parser, Mermaid auto-fit, and pan-zoom controller
+│   ├── viewer.js               # Marked parser, KaTeX math tokenizer, and pan-zoom controller
 │   ├── marked.min.js           # Offline CommonMark / GFM parsing engine
 │   ├── mermaid.min.js          # Offline vector diagram rendering engine
 │   ├── highlight.min.js        # Offline code syntax highlighting engine
 │   ├── qwebchannel.js          # Qt C++ to JavaScript communication channel
-│   ├── github.min.css          # Syntax highlighting dark theme
-│   └── github-light.min.css    # Syntax highlighting light theme
+│   ├── github-dark.min.css     # Syntax highlighting dark theme
+│   ├── github-light.min.css    # Syntax highlighting light theme
+│   └── katex/                  # Offline KaTeX mathematical typesetting engine
+│       ├── katex.min.js        # KaTeX parser and SVG/HTML formula generator
+│       ├── katex.min.css       # Formula styling and alignment rules
+│       └── fonts/              # 20 KaTeX vector font assets (.woff2)
 └── src/
     ├── MainWindow.h/.cpp       # Main window, menus, tab control, drag-drop filter
     ├── DocumentTab.h/.cpp      # Individual document container with QWebEngineView & watcher
@@ -128,18 +142,16 @@ MarkdownReader/
 - **Qt 6 Framework:** Qt 6.8+ with the following modules:
   - `Core`, `Gui`, `Widgets`, `WebEngineWidgets`, `WebChannel`, `Network`
 
-### Windows (MSVC 2022 + Ninja)
+### Windows (MSVC 2022 + Ninja or Visual Studio)
 
-1. Open **x64 Native Tools Command Prompt for VS 2022**.
+1. Open **x64 Native Tools Command Prompt for VS 2022** (or CLion with Release profile).
 2. Configure and build:
    ```cmd
    cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:\Qt\6.8.0\msvc2022_64"
    cmake --build build --config Release
    ```
-3. Deploy runtime dependencies for offline standalone use:
-   ```cmd
-   windeployqt --no-translations --compiler-runtime build\MarkdownReader.exe
-   ```
+   > [!NOTE]
+   > CMake automatically sets `RUNTIME_OUTPUT_DIRECTORY_RELEASE` to `build/Release` and executes `windeployqt` as an automated post-build command. The fully standalone executable is generated at `build\Release\MarkdownReader.exe`.
 
 ### Linux (Ubuntu / Debian / Fedora)
 
