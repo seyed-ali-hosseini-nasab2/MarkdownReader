@@ -1,10 +1,23 @@
 #include <QApplication>
-#include <QPushButton>
+#include <QFileInfo>
+#include "src/MainWindow.h"
 
 int main(int argc, char *argv[]) {
-    QApplication a(argc, argv);
-    QPushButton button("Hello world!", nullptr);
-    button.resize(200, 100);
-    button.show();
+    QApplication app(argc, argv);
+    app.setApplicationName("MarkdownReader");
+    app.setOrganizationName("MarkdownEngine");
+
+    MainWindow window;
+    window.show();
+
+    // Check if file path passed via command line arguments
+    if (argc > 1) {
+        QString filePath = QString::fromLocal8Bit(argv[1]);
+        if (QFileInfo::exists(filePath)) {
+            window.loadMarkdownFile(filePath);
+        }
+    }
+
     return QApplication::exec();
 }
+
