@@ -72,11 +72,11 @@ void MainWindow::setupUI() {
 void MainWindow::setupMenus() {
     // File Menu
     auto *fileMenu = menuBar()->addMenu("&File");
-    auto *openAct = fileMenu->addAction("&Open File(s)...", this, &MainWindow::openFileDialog, QKeySequence::Open);
-    auto *closeTabAct = fileMenu->addAction("&Close Tab", this, &MainWindow::closeCurrentTab, QKeySequence(Qt::CTRL | Qt::Key_W));
-    auto *reloadAct = fileMenu->addAction("&Reload Document", this, &MainWindow::reloadCurrentTab, QKeySequence::Refresh);
+    auto *openAct = fileMenu->addAction("&Open File(s)...", QKeySequence::Open, this, &MainWindow::openFileDialog);
+    auto *closeTabAct = fileMenu->addAction("&Close Tab", QKeySequence(Qt::CTRL | Qt::Key_W), this, &MainWindow::closeCurrentTab);
+    auto *reloadAct = fileMenu->addAction("&Reload Document", QKeySequence::Refresh, this, &MainWindow::reloadCurrentTab);
     fileMenu->addSeparator();
-    fileMenu->addAction("E&xit", this, &QWidget::close, QKeySequence::Quit);
+    fileMenu->addAction("E&xit", QKeySequence::Quit, this, &QWidget::close);
 
     // View Menu
     auto *viewMenu = menuBar()->addMenu("&View");
@@ -95,9 +95,9 @@ void MainWindow::setupMenus() {
     m_themeActionGroup->addAction(m_lightThemeAct);
 
     viewMenu->addSeparator();
-    viewMenu->addAction("Zoom &In", this, &MainWindow::zoomIn, QKeySequence::ZoomIn);
-    viewMenu->addAction("Zoom &Out", this, &MainWindow::zoomOut, QKeySequence::ZoomOut);
-    viewMenu->addAction("&Reset Zoom", this, &MainWindow::resetZoom, QKeySequence(Qt::CTRL | Qt::Key_0));
+    viewMenu->addAction("Zoom &In", QKeySequence::ZoomIn, this, &MainWindow::zoomIn);
+    viewMenu->addAction("Zoom &Out", QKeySequence::ZoomOut, this, &MainWindow::zoomOut);
+    viewMenu->addAction("&Reset Zoom", QKeySequence(Qt::CTRL | Qt::Key_0), this, &MainWindow::resetZoom);
 
     // Tools Menu
     auto *toolsMenu = menuBar()->addMenu("&Tools");
@@ -122,6 +122,10 @@ DocumentTab* MainWindow::currentDocumentTab() const {
 DocumentTab* MainWindow::createNewTab(const QString &filePath) {
     auto *tab = new DocumentTab(this);
     tab->setTheme(effectiveTheme());
+
+    connect(tab, &DocumentTab::openFileRequested, this, [this](const QString &path) {
+        openFile(path);
+    });
 
     connect(tab, &DocumentTab::fileLoaded, this, [this, tab](const QString &path) {
         int idx = m_tabWidget->indexOf(tab);
@@ -491,12 +495,24 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
 }
 
 void MainWindow::bringToFront() {
-    showNormal();
+    if (isMinimized()) {
+        if (isMaximized()) {
+            showMaximized();
+        } else {
+            showNormal();
+        }
+    } else {
+        show();
+    }
     raise();
     activateWindow();
 #ifdef Q_OS_WIN
     HWND hwnd = reinterpret_cast<HWND>(winId());
-    ShowWindow(hwnd, SW_RESTORE);
+    if (IsIconic(hwnd)) {
+        ShowWindow(hwnd, SW_RESTORE);
+    } else {
+        ShowWindow(hwnd, SW_SHOW);
+    }
     SetForegroundWindow(hwnd);
 #endif
 }

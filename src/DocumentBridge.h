@@ -34,9 +34,14 @@ public slots:
         }
     }
 
+    void openLink(const QString &url) {
+        emit linkActivated(url);
+    }
+
 signals:
     void markdownContentChanged(const QString &newContent);
     void themeChanged(const QString &newTheme);
+    void linkActivated(const QString &url);
 
 private:
     QString m_markdownContent;

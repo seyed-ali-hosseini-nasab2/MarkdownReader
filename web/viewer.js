@@ -46,7 +46,7 @@ function configureMermaid(theme) {
 // Initial Mermaid configuration
 configureMermaid(currentTheme);
 
-// Configure Marked to use Highlight.js
+// Configure Marked to use Highlight.js and assign slug IDs to headings
 marked.setOptions({
   gfm: true,
   breaks: true,
@@ -62,6 +62,22 @@ marked.setOptions({
       return hljs.highlightAuto(code).value;
     } catch (err) {
       return code;
+    }
+  }
+});
+
+marked.use({
+  renderer: {
+    heading({ tokens, depth, text }) {
+      const inlineContent = this.parser.parseInline(tokens);
+      // Clean HTML tags and produce anchor slug
+      const cleanText = text.replace(/<[^>]+>/g, '').trim();
+      const slug = cleanText
+        .toLowerCase()
+        .replace(/[^\w\u0600-\u06FF\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-');
+      return `<h${depth} id="${slug}">${inlineContent}</h${depth}>\n`;
     }
   }
 });
@@ -446,8 +462,37 @@ function setupChannel() {
   });
 }
 
-// Prevent default drag/drop behavior in browser so Qt event filter captures files cleanly
-window.addEventListener('dragover', (e) => { e.preventDefault(); }, false);
-window.addEventListener('drop', (e) => { e.preventDefault(); }, false);
+// Intercept all link clicks in capture phase to prevent Chromium navigation
+document.addEventListener('click', function(e) {
+  const anchor = e.target.closest('a');
+  if (!anchor) return;
+  const href = anchor.getAttribute('href');
+  if (!href || href === '#' || href.startsWith('javascript:')) return;
+
+  // 1. In-page anchor links (e.g. #features, #releases--downloads)
+  if (href.startsWith('#')) {
+    e.preventDefault();
+    const id = href.slice(1);
+    let target = document.getElementById(id) ||
+                 document.getElementById(decodeURIComponent(id)) ||
+                 document.querySelector(`[name="${CSS.escape(id)}"]`);
+    if (!target) {
+      const decoded = decodeURIComponent(id).toLowerCase();
+      target = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6')).find(h => {
+        return h.id === decoded || h.textContent.trim().toLowerCase().includes(decoded);
+      });
+    }
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    return;
+  }
+
+  // 2. All other links (relative markdown/document files, local files, external websites)
+  e.preventDefault();
+  if (window.bridge && typeof window.bridge.openLink === 'function') {
+    window.bridge.openLink(href);
+  }
+}, true);
 
 document.addEventListener('DOMContentLoaded', setupChannel);

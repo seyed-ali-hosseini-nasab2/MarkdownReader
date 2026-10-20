@@ -23,9 +23,13 @@ public:
     QString fileName() const;
     bool isEmpty() const { return m_filePath.isEmpty(); }
 
+public slots:
+    void onLinkActivated(const QString &href);
+
 signals:
     void fileLoaded(const QString &filePath);
     void fileModified(const QString &filePath);
+    void openFileRequested(const QString &filePath);
 
 private slots:
     void onFileSystemChanged(const QString &path);
