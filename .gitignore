@@ -1,0 +1,38 @@
+# Build artifacts
+/build/
+/cmake-build-*/
+/out/
+CMakeUserPresets.json
+
+# Visual Studio & CLion IDE files
+/.idea/
+/.vs/
+*.user
+*.suo
+*.sln.docstates
+
+# Python virtual environment
+/.venv/
+/venv/
+__pycache__/
+*.pyc
+
+# C++ binaries & temporary files
+*.exe
+*.dll
+*.so
+*.dylib
+*.pdb
+*.ilk
+*.idb
+*.obj
+*.o
+*.a
+*.lib
+
+# OS generated files
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.log
+
