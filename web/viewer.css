@@ -1,0 +1,364 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 32px;
+  background-color: #0d1117;
+  color: #c9d1d9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.65;
+  font-size: 16px;
+  overflow-y: scroll;
+}
+
+/* Central document container */
+.markdown-body {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding-bottom: 60px;
+}
+
+/* Headings */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  color: #f0f6fc;
+  font-weight: 600;
+  margin-top: 28px;
+  margin-bottom: 16px;
+  line-height: 1.25;
+}
+
+.markdown-body h1 {
+  font-size: 2.1rem;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #21262d;
+}
+
+.markdown-body h2 {
+  font-size: 1.6rem;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #21262d;
+}
+
+.markdown-body a {
+  color: #58a6ff;
+  text-decoration: none;
+}
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.markdown-body hr {
+  height: 2px;
+  background-color: #30363d;
+  border: 0;
+  margin: 28px 0;
+}
+
+.markdown-body blockquote {
+  margin: 0 0 16px;
+  padding: 0 1em;
+  color: #8b949e;
+  border-left: 4px solid #30363d;
+}
+
+/* Code & Pre */
+.markdown-body code {
+  background-color: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 88%;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+.markdown-body pre {
+  background-color: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 16px;
+  overflow: auto;
+  margin-bottom: 20px;
+}
+
+.markdown-body pre code {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 92%;
+  line-height: 1.5;
+}
+
+/* Tables */
+.markdown-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.markdown-body th,
+.markdown-body td {
+  padding: 10px 14px;
+  border: 1px solid #30363d;
+}
+
+.markdown-body th {
+  background-color: #161b22;
+  font-weight: 600;
+  text-align: left;
+}
+
+.markdown-body tr:nth-child(even) {
+  background-color: #12161c;
+}
+
+/* Empty placeholder */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: #8b949e;
+}
+.empty-state .icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+}
+.empty-state h2 {
+  color: #c9d1d9;
+  border: none;
+}
+
+/* ======================================================== */
+/* MERMAID DIAGRAM WRAPPER & INTERACTIVE ZOOM/PAN           */
+/* ======================================================== */
+
+.mermaid-wrapper {
+  position: relative;
+  margin: 28px 0;
+  background-color: #12171e;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+/* Toolbar visible on hover or focus */
+.mermaid-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background-color: #161b22;
+  border-bottom: 1px solid #30363d;
+  font-size: 13px;
+}
+
+.mermaid-toolbar-title {
+  font-weight: 600;
+  color: #58a6ff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mermaid-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-diagram {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #363b42;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-diagram:hover {
+  background: #30363d;
+  color: #f0f6fc;
+  border-color: #8b949e;
+}
+
+.btn-diagram.btn-primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #ffffff;
+}
+
+.btn-diagram.btn-primary:hover {
+  background: #2ea043;
+}
+
+/* Diagram interactive viewport */
+.mermaid-viewport {
+  position: relative;
+  min-height: 280px;
+  max-height: 720px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #0d1117;
+  cursor: grab;
+  user-select: none;
+}
+
+.mermaid-viewport:active {
+  cursor: grabbing;
+}
+
+.mermaid-canvas {
+  transform-origin: center center;
+  transition: transform 0.05s linear;
+  display: inline-block;
+}
+
+/* Large and readable SVG text */
+.mermaid-canvas svg {
+  display: block;
+  font-size: 16px !important;
+  max-width: none !important;
+}
+
+/* Badge showing inline zoom level */
+.inline-zoom-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: #1f242c;
+  border-radius: 4px;
+  color: #8b949e;
+  border: 1px solid #30363d;
+}
+
+/* ======================================================== */
+/* FULLSCREEN MODAL INSPECTION VIEWPORT                     */
+/* ======================================================== */
+
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.96);
+  backdrop-filter: blur(8px);
+  z-index: 99999;
+  flex-direction: column;
+}
+
+.modal.active {
+  display: flex;
+}
+
+.modal-header {
+  height: 56px;
+  padding: 0 24px;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #58a6ff;
+}
+
+.modal-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.zoom-badge {
+  background: #21262d;
+  border: 1px solid #30363d;
+  color: #58a6ff;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.btn {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn:hover {
+  background: #30363d;
+  color: #f0f6fc;
+}
+
+.btn-close {
+  background: #da3633;
+  color: white;
+  border-color: #f85149;
+}
+.btn-close:hover {
+  background: #b62324;
+}
+
+.modal-viewport {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: grab;
+  user-select: none;
+}
+
+.modal-viewport:active {
+  cursor: grabbing;
+}
+
+.modal-canvas {
+  transform-origin: center center;
+  display: inline-block;
+}
+
+.modal-canvas svg {
+  display: block;
+  max-width: none !important;
+  height: auto;
+}
+
+.modal-footer-hint {
+  height: 32px;
+  line-height: 32px;
+  text-align: center;
+  background: #0d1117;
+  border-top: 1px solid #21262d;
+  font-size: 12px;
+  color: #8b949e;
+  flex-shrink: 0;
+}

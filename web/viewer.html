@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown Reader</title>
+  <link rel="stylesheet" href="github-dark.min.css">
+  <link rel="stylesheet" href="viewer.css">
+  <script src="qwebchannel.js"></script>
+  <script src="marked.min.js"></script>
+  <script src="highlight.min.js"></script>
+  <script src="mermaid.min.js"></script>
+</head>
+<body>
+  <!-- Main content area -->
+  <main id="content" class="markdown-body">
+    <div class="empty-state">
+      <div class="icon">📄</div>
+      <h2>No Markdown File Loaded</h2>
+      <p>Drag and drop any <code>.md</code> file here, or use <b>File &gt; Open</b>.</p>
+    </div>
+  </main>
+
+  <!-- Fullscreen Modal for Detailed Mermaid Inspection -->
+  <div id="diagram-modal" class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <span class="modal-title">Mermaid Diagram Inspection</span>
+      <div class="modal-controls">
+        <span id="modal-zoom-level" class="zoom-badge">100%</span>
+        <button type="button" class="btn" onclick="zoomModal(1.25)" title="Zoom In (+)">➕ Zoom In</button>
+        <button type="button" class="btn" onclick="zoomModal(0.8)" title="Zoom Out (-)">➖ Zoom Out</button>
+        <button type="button" class="btn" onclick="resetModalZoom()" title="Reset Zoom">↺ Reset (1:1)</button>
+        <button type="button" class="btn btn-close" onclick="closeModal()" title="Close (Esc)">✕ Close</button>
+      </div>
+    </div>
+    <div id="modal-viewport" class="modal-viewport">
+      <div id="modal-canvas" class="modal-canvas"></div>
+    </div>
+    <div class="modal-footer-hint">Tip: Use Mouse Wheel to Zoom, Click & Drag to Pan. Press Esc to close.</div>
+  </div>
+
+  <script src="viewer.js"></script>
+</body>
+</html>
