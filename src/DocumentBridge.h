@@ -6,12 +6,17 @@
 class DocumentBridge : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString markdownContent READ markdownContent NOTIFY markdownContentChanged)
+    Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
 
 public:
-    explicit DocumentBridge(QObject *parent = nullptr) : QObject(parent) {}
+    explicit DocumentBridge(QObject *parent = nullptr) : QObject(parent), m_theme("dark") {}
 
     QString markdownContent() const {
         return m_markdownContent;
+    }
+
+    QString theme() const {
+        return m_theme;
     }
 
 public slots:
@@ -22,9 +27,18 @@ public slots:
         }
     }
 
+    void setTheme(const QString &newTheme) {
+        if (m_theme != newTheme) {
+            m_theme = newTheme;
+            emit themeChanged(m_theme);
+        }
+    }
+
 signals:
     void markdownContentChanged(const QString &newContent);
+    void themeChanged(const QString &newTheme);
 
 private:
     QString m_markdownContent;
+    QString m_theme;
 };
