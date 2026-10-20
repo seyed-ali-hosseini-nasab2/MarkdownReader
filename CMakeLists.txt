@@ -52,6 +52,12 @@ target_link_libraries(MarkdownReader PRIVATE
 
 if (WIN32)
     target_link_libraries(MarkdownReader PRIVATE shell32)
+
+    # Guarantee that Release builds output to ${CMAKE_SOURCE_DIR}/build/Release regardless of IDE build directory
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/build/Release"
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/build/Debug"
+    )
 endif()
 
 # Automated deployment step to make .exe completely offline and standalone
@@ -61,8 +67,25 @@ if (WIN32)
     find_program(WINDEPLOYQT_EXE windeployqt HINTS "${QT_BIN_DIR}")
 
     if (WINDEPLOYQT_EXE)
+        # Resolve VCINSTALLDIR so windeployqt copies MSVC runtime libraries without warning
+        set(DEPLOY_ENV "")
+        if (MSVC)
+            if (DEFINED ENV{VCINSTALLDIR})
+                set(RESOLVED_VC_DIR "$ENV{VCINSTALLDIR}")
+            elseif (EXISTS "C:/Program Files/Microsoft Visual Studio/2022/Community/VC")
+                set(RESOLVED_VC_DIR "C:/Program Files/Microsoft Visual Studio/2022/Community/VC")
+            elseif (EXISTS "C:/Program Files/Microsoft Visual Studio/2022/Professional/VC")
+                set(RESOLVED_VC_DIR "C:/Program Files/Microsoft Visual Studio/2022/Professional/VC")
+            elseif (EXISTS "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC")
+                set(RESOLVED_VC_DIR "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC")
+            endif()
+            if (RESOLVED_VC_DIR)
+                set(DEPLOY_ENV ${CMAKE_COMMAND} -E env "VCINSTALLDIR=${RESOLVED_VC_DIR}")
+            endif()
+        endif()
+
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND "${WINDEPLOYQT_EXE}"
+            COMMAND ${DEPLOY_ENV} "${WINDEPLOYQT_EXE}"
                     --no-translations
                     --compiler-runtime
                     "$<TARGET_FILE:${PROJECT_NAME}>"

@@ -141,6 +141,30 @@ body.theme-light .empty-state h2 {
   border-left: 4px solid #30363d;
 }
 
+.markdown-body strong,
+.markdown-body b {
+  font-weight: 700;
+  color: inherit;
+}
+
+.markdown-body em,
+.markdown-body i {
+  font-style: italic;
+}
+
+/* KaTeX formula display styling */
+.katex-display {
+  margin: 1.2em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 0;
+}
+
+.katex {
+  font-size: 1.15em;
+  text-rendering: auto;
+}
+
 /* Code & Pre */
 .markdown-body code {
   background-color: #161b22;

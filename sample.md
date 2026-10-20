@@ -190,3 +190,39 @@ erDiagram
 - [x] Vector Scalability without blurring
 - [x] No internet connection or CDN required
 - [x] Drag & drop `.md` files directly into window
+
+---
+
+## 4. Mathematical Formulas & Formatting (LaTeX / KaTeX)
+
+### فرمول‌های درون‌متنی (Inline Math)
+معادله مشهور اینشتین به صورت **$E = mc^2$** بیان می‌شود که در آن $m$ جرم و $c$ سرعت نور است.
+قضیه فیثاغورس: **$a^2 + b^2 = c^2$** برای هر مثلث قائم‌الزاویه صادق است.
+
+### فرمول‌های چندخطی و بلاک (Display Math)
+تبدیل فوریه پیوسته:
+$$
+\hat{f}(\xi) = \int_{-\infty}^{\infty} f(x) e^{-2\pi i x \xi} \, dx
+$$
+
+فرمول ریشه‌های معادله درجه دو:
+$$
+x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+$$
+
+ماتریس‌ها و عملگرهای پیشرفته:
+$$
+\begin{bmatrix}
+a & b \\
+c & d
+\end{bmatrix}^{-1} = \frac{1}{ad - bc} \begin{bmatrix}
+d & -b \\
+-c & a
+\end{bmatrix}
+$$
+
+**فرمول توزیع نرمال (گاوسی):**
+$$
+f(x) = \frac{1}{\sigma \sqrt{2\pi}} e^{-\frac{1}{2}\left(\frac{x - \mu}{\sigma}\right)^2}
+$$
+

@@ -105,6 +105,23 @@ function setTheme(theme) {
   }
 }
 
+// Safe KaTeX formula rendering
+function renderFormula(formula, isBlock) {
+  if (typeof katex === 'undefined') {
+    return isBlock ? `<div class="katex-display">${formula}</div>` : `<span class="katex">${formula}</span>`;
+  }
+  try {
+    return katex.renderToString(formula, {
+      displayMode: isBlock,
+      throwOnError: false,
+      output: 'html'
+    });
+  } catch (err) {
+    console.warn('KaTeX render error:', err);
+    return isBlock ? `<pre class="katex-error">${formula}</pre>` : `<code class="katex-error">${formula}</code>`;
+  }
+}
+
 // Main Markdown rendering pipeline
 async function renderMarkdown(markdownText) {
   currentMarkdown = markdownText || '';
@@ -122,7 +139,37 @@ async function renderMarkdown(markdownText) {
   diagramRegistry.clear();
   diagramStates.clear();
 
-  const tokens = marked.lexer(markdownText);
+  // Extract LaTeX math before Markdown parsing to prevent _ * \ escaping conflicts
+  const mathBlocks = [];
+  const mathInlines = [];
+
+  let processed = markdownText;
+
+  // 1. Fenced math code blocks: ```math ... ```
+  processed = processed.replace(/```math\r?\n([\s\S]*?)\r?\n```/g, (match, code) => {
+    const idx = mathBlocks.length;
+    mathBlocks.push(code.trim());
+    return `\n\nKATEXBLOCK_${idx}_TOKEN\n\n`;
+  });
+
+  // 2. Display math: $$ ... $$
+  processed = processed.replace(/\$\$([\s\S]+?)\$\$/g, (match, code) => {
+    const idx = mathBlocks.length;
+    mathBlocks.push(code.trim());
+    return `\n\nKATEXBLOCK_${idx}_TOKEN\n\n`;
+  });
+
+  // 3. Inline math: $...$ (not preceded by backslash, not empty, no leading/trailing space)
+  processed = processed.replace(/(?<!\\)\$([^\$\s](?:[^\$\r\n]*?[^\$\s])?)\$/g, (match, code) => {
+    const idx = mathInlines.length;
+    mathInlines.push(code.trim());
+    return `KATEXINLINE_${idx}_TOKEN`;
+  });
+
+  // Unescape any escaped dollars: \$ -> $
+  processed = processed.replace(/\\\$/g, '$');
+
+  const tokens = marked.lexer(processed);
   let html = '';
   let mermaidCounter = 0;
 
@@ -156,6 +203,21 @@ async function renderMarkdown(markdownText) {
     } else {
       html += marked.parser([token]);
     }
+  });
+
+  // Remove wrapping <p> around block formulas if present
+  html = html.replace(/<p>\s*(KATEXBLOCK_\d+_TOKEN)\s*<\/p>/g, '$1');
+
+  // Replace block math tokens with rendered KaTeX display HTML
+  html = html.replace(/KATEXBLOCK_(\d+)_TOKEN/g, (match, idxStr) => {
+    const idx = parseInt(idxStr, 10);
+    return renderFormula(mathBlocks[idx] || '', true);
+  });
+
+  // Replace inline math tokens with rendered KaTeX inline HTML
+  html = html.replace(/KATEXINLINE_(\d+)_TOKEN/g, (match, idxStr) => {
+    const idx = parseInt(idxStr, 10);
+    return renderFormula(mathInlines[idx] || '', false);
   });
 
   container.innerHTML = html;
