@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(MarkdownReader VERSION 1.0.0 LANGUAGES CXX)
+project(MarkdownReader VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,13 +26,14 @@ if (WIN32)
     list(APPEND PLATFORM_SOURCES resources/app.rc)
 endif()
 
-add_executable(MarkdownReader
+add_executable(MarkdownReader WIN32
         main.cpp
         src/MainWindow.h
         src/MainWindow.cpp
         src/DocumentTab.h
         src/DocumentTab.cpp
         src/DocumentBridge.h
+        src/LocalFileSchemeHandler.h
         src/WindowsAssociation.h
         src/WindowsAssociation.cpp
         src/SingleInstance.h

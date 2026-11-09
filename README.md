@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com"><img src="https://img.shields.io/badge/Version-v1.0.0-blue.svg" alt="Version"></a>
+  <a href="https://github.com"><img src="https://img.shields.io/badge/Version-v1.1.0-blue.svg" alt="Version"></a>
   <a href="https://en.cppreference.com/w/cpp/20"><img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=c%2B%2B" alt="C++20"></a>
   <a href="https://www.qt.io/"><img src="https://img.shields.io/badge/Qt-6.8-41CD52?logo=qt" alt="Qt 6.8"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
@@ -65,7 +65,7 @@ Equipped with an embedded Chromium engine via Qt WebEngine, it delivers pixel-pe
 
 ## Releases & Downloads
 
-Pre-built standalone releases for **v1.0.0** are available under the [GitHub Releases](https://github.com) page:
+Pre-built standalone releases for **v1.1.0** are available under the [GitHub Releases](https://github.com) page:
 
 | Platform | Architecture | Package Format | Details |
 | :--- | :--- | :--- | :--- |

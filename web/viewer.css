@@ -165,6 +165,16 @@ body.theme-light .empty-state h2 {
   text-rendering: auto;
 }
 
+/* Responsive Images */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  box-sizing: border-box;
+  border-radius: 6px;
+  margin: 12px 0;
+  display: block;
+}
+
 /* Code & Pre */
 .markdown-body code {
   background-color: #161b22;

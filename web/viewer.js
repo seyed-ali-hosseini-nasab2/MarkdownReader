@@ -1,5 +1,54 @@
 let currentTheme = 'dark';
 let currentMarkdown = '';
+let currentBaseDir = '';
+
+function resolveImageUrl(src) {
+  if (!src) return '';
+  src = src.trim();
+
+  // Strip angle brackets if present: <path with spaces>
+  if (src.startsWith('<') && src.endsWith('>')) {
+    src = src.slice(1, -1).trim();
+  }
+
+  // Absolute web URLs or data URIs or blob or qrc
+  if (/^(https?:|data:|blob:|qrc:)/i.test(src)) {
+    return src;
+  }
+
+  // Already an app-local URL
+  if (/^app-local:/i.test(src)) {
+    return src;
+  }
+
+  // Convert file:/// to app-local
+  if (/^file:\/\/\//i.test(src)) {
+    return 'app-local://local/' + src.slice(8);
+  }
+
+  // Windows absolute path with drive letter (e.g. C:\... or C:/...)
+  if (/^[a-zA-Z]:[\\/]/.test(src)) {
+    return 'app-local://local/' + src.replace(/\\/g, '/');
+  }
+
+  // Unix absolute path
+  if (src.startsWith('/')) {
+    return 'app-local://local' + src;
+  }
+
+  // If no base directory is known, return as-is
+  if (!currentBaseDir) {
+    return src;
+  }
+
+  try {
+    const normalized = src.replace(/\\/g, '/');
+    return new URL(normalized, currentBaseDir).href;
+  } catch (err) {
+    console.warn('Failed to resolve image URL:', src, err);
+    return src;
+  }
+}
 
 // Configure Mermaid settings based on theme
 function configureMermaid(theme) {
@@ -78,6 +127,12 @@ marked.use({
         .trim()
         .replace(/\s+/g, '-');
       return `<h${depth} id="${slug}">${inlineContent}</h${depth}>\n`;
+    },
+    image({ href, title, text }) {
+      const resolved = resolveImageUrl(href);
+      const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+      const altAttr = text ? ` alt="${escapeHtml(text)}"` : '';
+      return `<img src="${escapeHtml(resolved)}"${altAttr}${titleAttr} loading="lazy">`;
     }
   }
 });
@@ -218,6 +273,12 @@ async function renderMarkdown(markdownText) {
   html = html.replace(/KATEXINLINE_(\d+)_TOKEN/g, (match, idxStr) => {
     const idx = parseInt(idxStr, 10);
     return renderFormula(mathInlines[idx] || '', false);
+  });
+
+  // Resolve raw HTML <img src="..."> tags
+  html = html.replace(/<img\b([^>]*?)\bsrc=(["'])(.*?)\2([^>]*?)>/gi, (match, prefix, quote, src, suffix) => {
+    const resolved = resolveImageUrl(src);
+    return `<img${prefix}src="${escapeHtml(resolved)}"${suffix} loading="lazy">`;
   });
 
   container.innerHTML = html;
@@ -513,9 +574,20 @@ function setupChannel() {
         setTheme(newTheme);
       });
 
+      // Connect baseDir changed signal
+      window.bridge.baseDirChanged.connect(function(newBaseDir) {
+        currentBaseDir = newBaseDir || '';
+        if (currentMarkdown) {
+          renderMarkdown(currentMarkdown);
+        }
+      });
+
       // Initialize with bridge properties
       if (window.bridge.theme) {
         setTheme(window.bridge.theme);
+      }
+      if (window.bridge.baseDir) {
+        currentBaseDir = window.bridge.baseDir;
       }
       if (window.bridge.markdownContent) {
         renderMarkdown(window.bridge.markdownContent);

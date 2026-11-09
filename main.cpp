@@ -1,10 +1,18 @@
 #include <QApplication>
 #include <QFileInfo>
 #include <QIcon>
+#include <QWebEngineUrlScheme>
 #include "src/MainWindow.h"
 #include "src/SingleInstance.h"
 
 int main(int argc, char *argv[]) {
+    QWebEngineUrlScheme localScheme(QByteArrayLiteral("app-local"));
+    localScheme.setFlags(QWebEngineUrlScheme::SecureScheme |
+                         QWebEngineUrlScheme::CorsEnabled |
+                         QWebEngineUrlScheme::FetchApiAllowed |
+                         QWebEngineUrlScheme::ContentSecurityPolicyIgnored);
+    QWebEngineUrlScheme::registerScheme(localScheme);
+
     QApplication app(argc, argv);
     app.setApplicationName("MarkdownReader");
     app.setApplicationDisplayName("Markdown & Mermaid Reader");
@@ -29,7 +37,7 @@ int main(int argc, char *argv[]) {
     }
 
     MainWindow window;
-    window.show();
+    window.showMaximized();
 
     // Listen for incoming files sent from secondary instances
     QObject::connect(&singleInstance, &SingleInstanceManager::filesReceived, &window, [&window](const QStringList &files) {

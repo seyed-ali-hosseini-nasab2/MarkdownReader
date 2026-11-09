@@ -10,6 +10,10 @@
 #include <QDesktopServices>
 #include <QMessageBox>
 #include <QWebEnginePage>
+#include <QWebEngineSettings>
+#include <QWebEngineProfile>
+#include <QCoreApplication>
+#include "LocalFileSchemeHandler.h"
 
 class CustomWebEnginePage : public QWebEnginePage {
 public:
@@ -42,7 +46,25 @@ DocumentTab::DocumentTab(QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_webView);
 
+    // Install scheme handler for local file access (images, assets)
+    static bool handlerInstalled = false;
+    if (!handlerInstalled) {
+        QWebEngineProfile::defaultProfile()->installUrlSchemeHandler(
+            QByteArrayLiteral("app-local"), new LocalFileSchemeHandler(QCoreApplication::instance()));
+        handlerInstalled = true;
+    }
+
+    // Enable local file access and image loading for offline Markdown documents
+    m_webView->settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls, true);
+    m_webView->settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessRemoteUrls, true);
+    m_webView->settings()->setAttribute(QWebEngineSettings::AllowRunningInsecureContent, true);
+    m_webView->settings()->setAttribute(QWebEngineSettings::AutoLoadImages, true);
+
     auto *page = new CustomWebEnginePage(this, m_webView);
+    page->settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls, true);
+    page->settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessRemoteUrls, true);
+    page->settings()->setAttribute(QWebEngineSettings::AllowRunningInsecureContent, true);
+    page->settings()->setAttribute(QWebEngineSettings::AutoLoadImages, true);
     m_webView->setPage(page);
 
     auto *channel = new QWebChannel(this);
@@ -73,7 +95,17 @@ bool DocumentTab::loadFile(const QString &filePath) {
     m_filePath = filePath;
     m_fileWatcher.addPath(filePath);
 
-    m_bridge->setMarkdown(content);
+    QFileInfo fi(filePath);
+    QString absPath = fi.absolutePath();
+    if (!absPath.startsWith('/')) {
+        absPath = '/' + absPath;
+    }
+    if (!absPath.endsWith('/')) {
+        absPath += '/';
+    }
+    QString baseDirUrl = "app-local://local" + absPath;
+
+    m_bridge->setMarkdown(content, baseDirUrl);
     emit fileLoaded(filePath);
     return true;
 }

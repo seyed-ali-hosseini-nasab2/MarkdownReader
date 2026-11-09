@@ -502,14 +502,24 @@ void MainWindow::bringToFront() {
             showNormal();
         }
     } else {
-        show();
+        if (isMaximized()) {
+            showMaximized();
+        } else {
+            show();
+        }
     }
     raise();
     activateWindow();
 #ifdef Q_OS_WIN
     HWND hwnd = reinterpret_cast<HWND>(winId());
     if (IsIconic(hwnd)) {
-        ShowWindow(hwnd, SW_RESTORE);
+        if (isMaximized()) {
+            ShowWindow(hwnd, SW_MAXIMIZE);
+        } else {
+            ShowWindow(hwnd, SW_RESTORE);
+        }
+    } else if (isMaximized() || IsZoomed(hwnd)) {
+        ShowWindow(hwnd, SW_SHOWMAXIMIZED);
     } else {
         ShowWindow(hwnd, SW_SHOW);
     }

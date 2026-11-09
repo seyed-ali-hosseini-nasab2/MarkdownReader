@@ -7,6 +7,7 @@ class DocumentBridge : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString markdownContent READ markdownContent NOTIFY markdownContentChanged)
     Q_PROPERTY(QString theme READ theme WRITE setTheme NOTIFY themeChanged)
+    Q_PROPERTY(QString baseDir READ baseDir NOTIFY baseDirChanged)
 
 public:
     explicit DocumentBridge(QObject *parent = nullptr) : QObject(parent), m_theme("dark") {}
@@ -19,9 +20,19 @@ public:
         return m_theme;
     }
 
+    QString baseDir() const {
+        return m_baseDir;
+    }
+
 public slots:
-    void setMarkdown(const QString &content) {
-        if (m_markdownContent != content) {
+    void setMarkdown(const QString &content, const QString &baseDir = QString()) {
+        bool dirChanged = (m_baseDir != baseDir);
+        bool contentChanged = (m_markdownContent != content);
+        if (dirChanged) {
+            m_baseDir = baseDir;
+            emit baseDirChanged(m_baseDir);
+        }
+        if (contentChanged) {
             m_markdownContent = content;
             emit markdownContentChanged(m_markdownContent);
         }
@@ -41,9 +52,11 @@ public slots:
 signals:
     void markdownContentChanged(const QString &newContent);
     void themeChanged(const QString &newTheme);
+    void baseDirChanged(const QString &newBaseDir);
     void linkActivated(const QString &url);
 
 private:
     QString m_markdownContent;
     QString m_theme;
+    QString m_baseDir;
 };
