@@ -27,11 +27,13 @@ MainWindow::MainWindow(QWidget *parent)
     setupMenus();
 
     // Listen to OS system theme changes dynamically
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
         if (m_themeMode == ThemeMode::System) {
             updateTheme();
         }
     });
+#endif
 
     // Load saved theme preference
     QSettings settings("MarkdownEngine", "MarkdownReader");
@@ -266,8 +268,13 @@ QString MainWindow::effectiveTheme() const {
     if (m_themeMode == ThemeMode::Light) return "light";
 
     // System mode: read from OS
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     auto scheme = QGuiApplication::styleHints()->colorScheme();
     return (scheme == Qt::ColorScheme::Light) ? "light" : "dark";
+#else
+    QColor windowColor = palette().color(QPalette::Window);
+    return (windowColor.value() > 128) ? "light" : "dark";
+#endif
 }
 
 void MainWindow::setThemeMode(ThemeMode mode) {

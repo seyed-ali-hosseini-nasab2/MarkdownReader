@@ -7,10 +7,13 @@
 
 int main(int argc, char *argv[]) {
     QWebEngineUrlScheme localScheme(QByteArrayLiteral("app-local"));
-    localScheme.setFlags(QWebEngineUrlScheme::SecureScheme |
-                         QWebEngineUrlScheme::CorsEnabled |
-                         QWebEngineUrlScheme::FetchApiAllowed |
-                         QWebEngineUrlScheme::ContentSecurityPolicyIgnored);
+    QWebEngineUrlScheme::Flags flags = QWebEngineUrlScheme::SecureScheme |
+                                       QWebEngineUrlScheme::CorsEnabled |
+                                       QWebEngineUrlScheme::ContentSecurityPolicyIgnored;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    flags |= QWebEngineUrlScheme::FetchApiAllowed;
+#endif
+    localScheme.setFlags(flags);
     QWebEngineUrlScheme::registerScheme(localScheme);
 
     QApplication app(argc, argv);

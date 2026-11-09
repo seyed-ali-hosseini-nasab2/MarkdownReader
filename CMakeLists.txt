@@ -59,6 +59,11 @@ if (WIN32)
         RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/build/Release"
         RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/build/Debug"
     )
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set_target_properties(${PROJECT_NAME} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/Release"
+        )
+    endif()
 endif()
 
 # Automated deployment step to make .exe completely offline and standalone
