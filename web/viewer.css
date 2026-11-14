@@ -340,7 +340,7 @@ body.theme-light .btn-diagram:hover {
 /* Diagram interactive viewport */
 .mermaid-viewport {
   position: relative;
-  min-height: 220px;
+  min-height: 240px;
   max-height: 800px;
   overflow: hidden;
   display: flex;
@@ -349,6 +349,7 @@ body.theme-light .btn-diagram:hover {
   background-color: #0d1117;
   cursor: grab;
   user-select: none;
+  touch-action: none;
   transition: background-color 0.2s ease;
 }
 
@@ -362,7 +363,7 @@ body.theme-light .mermaid-viewport {
 
 .mermaid-canvas {
   transform-origin: center center;
-  transition: transform 0.05s linear;
+  transition: none;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -373,7 +374,7 @@ body.theme-light .mermaid-viewport {
 .mermaid-canvas svg {
   display: block;
   font-size: 16px !important;
-  max-width: 100%;
+  max-width: none !important;
   height: auto;
 }
 
@@ -508,6 +509,7 @@ body.theme-light .btn:hover {
   position: relative;
   cursor: grab;
   user-select: none;
+  touch-action: none;
 }
 
 .modal-viewport:active {
@@ -516,6 +518,7 @@ body.theme-light .btn:hover {
 
 .modal-canvas {
   transform-origin: center center;
+  transition: none;
   display: inline-block;
 }
 

@@ -40,7 +40,7 @@ jobs:
       - name: Package Windows Release
         shell: pwsh
         run: |
-          $TAG = if ("${{ github.ref_name }}" -match "^v") { "${{ github.ref_name }}" } else { "v1.1.0" }
+          $TAG = if ("${{ github.ref_name }}" -match "^v") { "${{ github.ref_name }}" } else { "v1.2.0" }
           $ARCHIVE_NAME = "MarkdownReader-$TAG-windows-x64"
           New-Item -ItemType Directory -Path "dist/$ARCHIVE_NAME" -Force
           Copy-Item -Path build/Release/* -Destination "dist/$ARCHIVE_NAME/" -Recurse
@@ -79,7 +79,7 @@ jobs:
       - name: Package Linux Release
         run: |
           TAG="${{ github.ref_name }}"
-          if [[ ! "$TAG" =~ ^v ]]; then TAG="v1.1.0"; fi
+          if [[ ! "$TAG" =~ ^v ]]; then TAG="v1.2.0"; fi
           ARCHIVE_NAME="MarkdownReader-$TAG-linux-x86_64"
           mkdir -p "dist/$ARCHIVE_NAME"
           cp build-linux/MarkdownReader "dist/$ARCHIVE_NAME/"

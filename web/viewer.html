@@ -29,16 +29,17 @@
       <span class="modal-title">Mermaid Diagram Inspection</span>
       <div class="modal-controls">
         <span id="modal-zoom-level" class="zoom-badge">100%</span>
+        <button type="button" class="btn" onclick="fitModalDiagram()" title="Fit Diagram to Screen">⤢ Fit</button>
         <button type="button" class="btn" onclick="zoomModal(1.25)" title="Zoom In (+)">➕ Zoom In</button>
         <button type="button" class="btn" onclick="zoomModal(0.8)" title="Zoom Out (-)">➖ Zoom Out</button>
-        <button type="button" class="btn" onclick="resetModalZoom()" title="Reset Zoom">↺ Reset (1:1)</button>
+        <button type="button" class="btn" onclick="resetModalZoom()" title="Native Size (1:1)">↺ 1:1</button>
         <button type="button" class="btn btn-close" onclick="closeModal()" title="Close (Esc)">✕ Close</button>
       </div>
     </div>
     <div id="modal-viewport" class="modal-viewport">
       <div id="modal-canvas" class="modal-canvas"></div>
     </div>
-    <div class="modal-footer-hint">Tip: Use Mouse Wheel to Zoom, Click & Drag to Pan. Press Esc to close.</div>
+    <div class="modal-footer-hint">Tip: Mouse wheel zooms to cursor. Click &amp; drag to pan. Double-click to re-fit. Press Esc to close.</div>
   </div>
 
   <script src="viewer.js"></script>

@@ -100,6 +100,8 @@ void MainWindow::setupMenus() {
     viewMenu->addAction("Zoom &In", QKeySequence::ZoomIn, this, &MainWindow::zoomIn);
     viewMenu->addAction("Zoom &Out", QKeySequence::ZoomOut, this, &MainWindow::zoomOut);
     viewMenu->addAction("&Reset Zoom", QKeySequence(Qt::CTRL | Qt::Key_0), this, &MainWindow::resetZoom);
+    viewMenu->addSeparator();
+    viewMenu->addAction("&Toggle Full Screen", QKeySequence::FullScreen, this, &MainWindow::toggleFullScreen);
 
     // Tools Menu
     auto *toolsMenu = menuBar()->addMenu("&Tools");
@@ -260,6 +262,14 @@ void MainWindow::resetZoom() {
     if (tab) {
         tab->setZoomFactor(1.0);
         statusBar()->showMessage("Page Zoom: 100%", 1500);
+    }
+}
+
+void MainWindow::toggleFullScreen() {
+    if (isFullScreen()) {
+        showMaximized();
+    } else {
+        showFullScreen();
     }
 }
 
@@ -503,13 +513,17 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
 
 void MainWindow::bringToFront() {
     if (isMinimized()) {
-        if (isMaximized()) {
+        if (isFullScreen()) {
+            showFullScreen();
+        } else if (isMaximized()) {
             showMaximized();
         } else {
             showNormal();
         }
     } else {
-        if (isMaximized()) {
+        if (isFullScreen()) {
+            showFullScreen();
+        } else if (isMaximized()) {
             showMaximized();
         } else {
             show();
@@ -520,11 +534,15 @@ void MainWindow::bringToFront() {
 #ifdef Q_OS_WIN
     HWND hwnd = reinterpret_cast<HWND>(winId());
     if (IsIconic(hwnd)) {
-        if (isMaximized()) {
+        if (isFullScreen()) {
+            ShowWindow(hwnd, SW_SHOW);
+        } else if (isMaximized()) {
             ShowWindow(hwnd, SW_MAXIMIZE);
         } else {
             ShowWindow(hwnd, SW_RESTORE);
         }
+    } else if (isFullScreen()) {
+        ShowWindow(hwnd, SW_SHOW);
     } else if (isMaximized() || IsZoomed(hwnd)) {
         ShowWindow(hwnd, SW_SHOWMAXIMIZED);
     } else {

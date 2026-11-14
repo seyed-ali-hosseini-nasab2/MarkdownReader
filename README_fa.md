@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com"><img src="https://img.shields.io/badge/نسخه-v1.1.0-blue.svg" alt="Version"></a>
+  <a href="https://github.com"><img src="https://img.shields.io/badge/نسخه-v1.2.0-blue.svg" alt="Version"></a>
   <a href="https://en.cppreference.com/w/cpp/20"><img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=c%2B%2B" alt="C++20"></a>
   <a href="https://www.qt.io/"><img src="https://img.shields.io/badge/Qt-6.8-41CD52?logo=qt" alt="Qt 6.8"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/لایسنس-MIT-yellow.svg" alt="License: MIT"></a>
@@ -67,7 +67,7 @@
 
 ## دانلود نسخه‌های آماده (Releases)
 
-فایل‌های اجرایی نسخه **v1.1.0** به صورت مستقل در بخش [Releases گیت‌هاب](https://github.com) قابل دریافت است:
+فایل‌های اجرایی نسخه **v1.2.0** به صورت مستقل در بخش [Releases گیت‌هاب](https://github.com) قابل دریافت است:
 
 | سیستم‌عامل | معماری پردازنده | فرمت بسته | توضیحات |
 | :--- | :--- | :--- | :--- |

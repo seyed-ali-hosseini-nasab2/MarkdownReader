@@ -312,8 +312,38 @@ function escapeHtml(str) {
   );
 }
 
-// Fit diagram so 100% of the entire shape is visible on initial load
-function fitDiagramToViewport(diagramId) {
+// Robust SVG dimension retrieval from viewBox, getBBox, or rect
+function getSvgDimensions(svg) {
+  let w = 0, h = 0;
+  if (svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width > 0) {
+    w = svg.viewBox.baseVal.width;
+    h = svg.viewBox.baseVal.height;
+  } else if (svg.getAttribute('viewBox')) {
+    const parts = svg.getAttribute('viewBox').trim().split(/[\s,]+/);
+    if (parts.length === 4) {
+      w = parseFloat(parts[2]);
+      h = parseFloat(parts[3]);
+    }
+  }
+  if (!w || !h) {
+    try {
+      const bbox = svg.getBBox();
+      if (bbox.width > 0 && bbox.height > 0) {
+        w = bbox.width;
+        h = bbox.height;
+      }
+    } catch (_) {}
+  }
+  if (!w || !h) {
+    const rect = svg.getBoundingClientRect();
+    w = rect.width || 800;
+    h = rect.height || 450;
+  }
+  return { width: Math.max(w, 50), height: Math.max(h, 50) };
+}
+
+// Fit diagram so 100% of the entire shape is visible without layout shifting
+function fitDiagramToViewport(diagramId, adjustHeight = true) {
   const viewport = document.getElementById(`viewport-${diagramId}`);
   const canvas = document.getElementById(`canvas-${diagramId}`);
   if (!viewport || !canvas) return;
@@ -321,49 +351,50 @@ function fitDiagramToViewport(diagramId) {
   const svg = canvas.querySelector('svg');
   if (!svg) return;
 
-  // Unconstrain SVG styling
   svg.style.maxWidth = 'none';
+  svg.style.maxHeight = 'none';
   svg.style.display = 'block';
 
-  // Read true SVG bounding box
-  let svgW = 0, svgH = 0;
-  if (svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width > 0) {
-    svgW = svg.viewBox.baseVal.width;
-    svgH = svg.viewBox.baseVal.height;
-  } else {
-    const bbox = svg.getBBox();
-    svgW = bbox.width || 800;
-    svgH = bbox.height || 400;
-  }
+  const { width: svgW, height: svgH } = getSvgDimensions(svg);
+  svg.setAttribute('width', `${svgW}`);
+  svg.setAttribute('height', `${svgH}`);
 
-  // Available viewport space (with padding)
   const pad = 36;
-  const vpW = Math.max(viewport.clientWidth - pad, 260);
+  const vpW = Math.max(viewport.clientWidth - pad, 200);
 
-  // Scale factor to show the entire diagram width
   let fitScale = 1.0;
   if (svgW > vpW) {
     fitScale = vpW / svgW;
-  } else if (svgW < 400) {
-    // If very small, scale up slightly for comfortable readability
-    fitScale = Math.min(vpW / svgW, 1.2);
+  } else if (svgW < 360) {
+    fitScale = Math.min(vpW / svgW, 1.25);
   }
 
-  // Dynamically size viewport height to fit diagram height without vertical cutoff
-  const desiredHeight = Math.min(Math.max(svgH * fitScale + 44, 220), 760);
-  viewport.style.height = `${Math.round(desiredHeight)}px`;
+  // Only adjust viewport height on initial render to prevent layout jump loops during resize
+  if (adjustHeight) {
+    const desiredHeight = Math.min(Math.max(svgH * fitScale + 44, 240), 720);
+    viewport.style.height = `${Math.round(desiredHeight)}px`;
+  }
+
+  // Ensure diagram is not vertically clipped if viewport height was clamped
+  const vpH = Math.max(viewport.clientHeight - 40, 160);
+  if (svgH * fitScale > vpH) {
+    fitScale = Math.min(fitScale, vpH / svgH);
+  }
 
   const state = diagramStates.get(diagramId) || {
     scale: fitScale,
+    fitScale: fitScale,
     tx: 0,
     ty: 0,
     isDragging: false,
-    startX: 0,
-    startY: 0
+    isFit: true
   };
+
   state.scale = fitScale;
+  state.fitScale = fitScale;
   state.tx = 0;
   state.ty = 0;
+  state.isFit = true;
   diagramStates.set(diagramId, state);
 
   canvas.style.transform = `translate(0px, 0px) scale(${fitScale})`;
@@ -374,53 +405,96 @@ function fitDiagramToViewport(diagramId) {
   }
 }
 
-// Diagram interactive state management
+// Diagram interactive state management with focal zoom and PointerCapture
 function initDiagramInteraction(diagramId) {
   const viewport = document.getElementById(`viewport-${diagramId}`);
   const canvas = document.getElementById(`canvas-${diagramId}`);
   const badge = document.getElementById(`badge-${diagramId}`);
   if (!viewport || !canvas) return;
 
-  // Perform initial auto-fit to show the entire diagram
-  fitDiagramToViewport(diagramId);
+  fitDiagramToViewport(diagramId, true);
 
   const state = diagramStates.get(diagramId);
 
   function applyTransform() {
     canvas.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
     if (badge) {
-      badge.textContent = `${Math.round(state.scale * 100)}%`;
+      if (state.isFit && Math.abs(state.scale - state.fitScale) < 0.01 && state.tx === 0 && state.ty === 0) {
+        badge.textContent = `${Math.round(state.scale * 100)}% (Fit)`;
+      } else {
+        badge.textContent = `${Math.round(state.scale * 100)}%`;
+      }
     }
   }
 
-  // Wheel to zoom
+  // Wheel to focal zoom towards mouse cursor
   viewport.addEventListener('wheel', (e) => {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.15 : 0.85;
-    state.scale = Math.min(Math.max(state.scale * factor, 0.2), 15.0);
+    const oldScale = state.scale;
+    const newScale = Math.min(Math.max(oldScale * factor, 0.15), 20.0);
+    if (newScale === oldScale) return;
+
+    const rect = viewport.getBoundingClientRect();
+    const cx = e.clientX - (rect.left + rect.width / 2);
+    const cy = e.clientY - (rect.top + rect.height / 2);
+
+    state.tx = cx - (cx - state.tx) * (newScale / oldScale);
+    state.ty = cy - (cy - state.ty) * (newScale / oldScale);
+    state.scale = newScale;
+    state.isFit = false;
+
     applyTransform();
   }, { passive: false });
 
-  // Drag to pan
-  viewport.addEventListener('mousedown', (e) => {
+  // Pointer drag with PointerCapture for smooth, jitter-free panning
+  let startX = 0;
+  let startY = 0;
+  let initTx = 0;
+  let initTy = 0;
+  let activePointerId = null;
+
+  viewport.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.mermaid-toolbar') || e.target.closest('button')) return;
+    e.preventDefault();
+
     state.isDragging = true;
-    state.startX = e.clientX - state.tx;
-    state.startY = e.clientY - state.ty;
+    activePointerId = e.pointerId;
+    viewport.setPointerCapture(e.pointerId);
+    viewport.style.cursor = 'grabbing';
+
+    startX = e.clientX;
+    startY = e.clientY;
+    initTx = state.tx;
+    initTy = state.ty;
   });
 
-  window.addEventListener('mousemove', (e) => {
-    if (!state.isDragging) return;
-    state.tx = e.clientX - state.startX;
-    state.ty = e.clientY - state.startY;
+  viewport.addEventListener('pointermove', (e) => {
+    if (!state.isDragging || e.pointerId !== activePointerId) return;
+    state.tx = initTx + (e.clientX - startX);
+    state.ty = initTy + (e.clientY - startY);
+    state.isFit = false;
     applyTransform();
   });
 
-  window.addEventListener('mouseup', () => {
-    state.isDragging = false;
-  });
+  const stopDrag = (e) => {
+    if (state.isDragging && e.pointerId === activePointerId) {
+      state.isDragging = false;
+      viewport.style.cursor = 'grab';
+      try {
+        viewport.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+      activePointerId = null;
+    }
+  };
 
-  // Double click to open fullscreen
-  viewport.addEventListener('dblclick', () => {
+  viewport.addEventListener('pointerup', stopDrag);
+  viewport.addEventListener('pointercancel', stopDrag);
+
+  // Double click to open fullscreen inspection modal
+  viewport.addEventListener('dblclick', (e) => {
+    if (e.target.closest('.mermaid-toolbar') || e.target.closest('button')) return;
     openModal(diagramId);
   });
 }
@@ -428,7 +502,11 @@ function initDiagramInteraction(diagramId) {
 function zoomDiagram(diagramId, factor) {
   const state = diagramStates.get(diagramId);
   if (!state) return;
-  state.scale = Math.min(Math.max(state.scale * factor, 0.2), 15.0);
+  const oldScale = state.scale;
+  const newScale = Math.min(Math.max(oldScale * factor, 0.15), 20.0);
+  state.scale = newScale;
+  state.isFit = false;
+
   const canvas = document.getElementById(`canvas-${diagramId}`);
   const badge = document.getElementById(`badge-${diagramId}`);
   if (canvas) {
@@ -445,6 +523,8 @@ function resetDiagramZoom(diagramId) {
   state.scale = 1.0;
   state.tx = 0;
   state.ty = 0;
+  state.isFit = false;
+
   const canvas = document.getElementById(`canvas-${diagramId}`);
   const badge = document.getElementById(`badge-${diagramId}`);
   if (canvas) {
@@ -455,11 +535,23 @@ function resetDiagramZoom(diagramId) {
   }
 }
 
-// Window resize refits diagrams
+// Window resize refits diagrams smoothly without layout jumping
+let resizeRaf = null;
 window.addEventListener('resize', () => {
-  for (const diagramId of diagramRegistry.keys()) {
-    fitDiagramToViewport(diagramId);
-  }
+  if (resizeRaf) cancelAnimationFrame(resizeRaf);
+  resizeRaf = requestAnimationFrame(() => {
+    const modal = document.getElementById('diagram-modal');
+    if (modal && modal.classList.contains('active') && modalState.isFit) {
+      fitModalDiagram();
+    }
+
+    for (const diagramId of diagramRegistry.keys()) {
+      const state = diagramStates.get(diagramId);
+      if (state && state.isFit) {
+        fitDiagramToViewport(diagramId, false);
+      }
+    }
+  });
 });
 
 // ========================================================
@@ -467,12 +559,12 @@ window.addEventListener('resize', () => {
 // ========================================================
 
 const modalState = {
-  scale: 1.5,
+  scale: 1.0,
+  fitScale: 1.0,
   tx: 0,
   ty: 0,
   isDragging: false,
-  startX: 0,
-  startY: 0
+  isFit: true
 };
 
 function openModal(diagramId) {
@@ -481,20 +573,66 @@ function openModal(diagramId) {
   const svg = canvas.querySelector('svg');
   if (!svg) return;
 
-  const modalCanvas = document.getElementById('modal-canvas');
-  modalCanvas.innerHTML = svg.outerHTML;
-
   const modal = document.getElementById('diagram-modal');
+  const modalCanvas = document.getElementById('modal-canvas');
+  if (!modal || !modalCanvas) return;
+
+  const { width: svgW, height: svgH } = getSvgDimensions(svg);
+
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('width', `${svgW}`);
+  clone.setAttribute('height', `${svgH}`);
+  clone.style.maxWidth = 'none';
+  clone.style.maxHeight = 'none';
+  clone.style.display = 'block';
+
+  modalCanvas.innerHTML = '';
+  modalCanvas.appendChild(clone);
+
+  document.body.style.overflow = 'hidden';
   modal.classList.add('active');
 
-  resetModalZoom();
+  requestAnimationFrame(() => {
+    fitModalDiagram();
+  });
 }
 
 function closeModal() {
   const modal = document.getElementById('diagram-modal');
-  modal.classList.remove('active');
+  if (modal) {
+    modal.classList.remove('active');
+  }
   const modalCanvas = document.getElementById('modal-canvas');
-  modalCanvas.innerHTML = '';
+  if (modalCanvas) {
+    modalCanvas.innerHTML = '';
+  }
+  document.body.style.overflow = '';
+}
+
+function fitModalDiagram() {
+  const modalViewport = document.getElementById('modal-viewport');
+  const modalCanvas = document.getElementById('modal-canvas');
+  if (!modalViewport || !modalCanvas) return;
+
+  const svg = modalCanvas.querySelector('svg');
+  if (!svg) return;
+
+  const { width: svgW, height: svgH } = getSvgDimensions(svg);
+  const vw = Math.max(modalViewport.clientWidth - 80, 200);
+  const vh = Math.max(modalViewport.clientHeight - 80, 200);
+
+  const scaleX = vw / svgW;
+  const scaleY = vh / svgH;
+  let fitScale = Math.min(scaleX, scaleY);
+  fitScale = Math.min(Math.max(fitScale, 0.15), 2.5);
+
+  modalState.scale = fitScale;
+  modalState.fitScale = fitScale;
+  modalState.tx = 0;
+  modalState.ty = 0;
+  modalState.isFit = true;
+
+  applyModalTransform();
 }
 
 function applyModalTransform() {
@@ -504,53 +642,109 @@ function applyModalTransform() {
     canvas.style.transform = `translate(${modalState.tx}px, ${modalState.ty}px) scale(${modalState.scale})`;
   }
   if (badge) {
-    badge.textContent = `${Math.round(modalState.scale * 100)}%`;
+    if (modalState.isFit && Math.abs(modalState.scale - modalState.fitScale) < 0.01 && modalState.tx === 0 && modalState.ty === 0) {
+      badge.textContent = `${Math.round(modalState.scale * 100)}% (Fit)`;
+    } else {
+      badge.textContent = `${Math.round(modalState.scale * 100)}%`;
+    }
   }
 }
 
 function zoomModal(factor) {
-  modalState.scale = Math.min(Math.max(modalState.scale * factor, 0.2), 30.0);
+  const oldScale = modalState.scale;
+  const newScale = Math.min(Math.max(oldScale * factor, 0.15), 30.0);
+  modalState.scale = newScale;
+  modalState.isFit = false;
   applyModalTransform();
 }
 
 function resetModalZoom() {
-  modalState.scale = 1.5;
+  modalState.scale = 1.0;
   modalState.tx = 0;
   modalState.ty = 0;
+  modalState.isFit = false;
   applyModalTransform();
 }
 
-// Modal Viewport Drag and Wheel events
-const modalViewport = document.getElementById('modal-viewport');
-modalViewport.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  const factor = e.deltaY < 0 ? 1.18 : 0.82;
-  modalState.scale = Math.min(Math.max(modalState.scale * factor, 0.2), 30.0);
-  applyModalTransform();
-}, { passive: false });
+function setupModalEvents() {
+  const modalViewport = document.getElementById('modal-viewport');
+  const modal = document.getElementById('diagram-modal');
+  if (!modalViewport || !modal) return;
 
-modalViewport.addEventListener('mousedown', (e) => {
-  modalState.isDragging = true;
-  modalState.startX = e.clientX - modalState.tx;
-  modalState.startY = e.clientY - modalState.ty;
-});
+  modalViewport.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.15 : 0.85;
+    const oldScale = modalState.scale;
+    const newScale = Math.min(Math.max(oldScale * factor, 0.15), 30.0);
+    if (newScale === oldScale) return;
 
-window.addEventListener('mousemove', (e) => {
-  if (!modalState.isDragging) return;
-  modalState.tx = e.clientX - modalState.startX;
-  modalState.ty = e.clientY - modalState.startY;
-  applyModalTransform();
-});
+    const rect = modalViewport.getBoundingClientRect();
+    const cx = e.clientX - (rect.left + rect.width / 2);
+    const cy = e.clientY - (rect.top + rect.height / 2);
 
-window.addEventListener('mouseup', () => {
-  modalState.isDragging = false;
-});
+    modalState.tx = cx - (cx - modalState.tx) * (newScale / oldScale);
+    modalState.ty = cy - (cy - modalState.ty) * (newScale / oldScale);
+    modalState.scale = newScale;
+    modalState.isFit = false;
 
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    closeModal();
-  }
-});
+    applyModalTransform();
+  }, { passive: false });
+
+  let startX = 0;
+  let startY = 0;
+  let initTx = 0;
+  let initTy = 0;
+  let activePointerId = null;
+
+  modalViewport.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.modal-header') || e.target.closest('button')) return;
+    e.preventDefault();
+
+    modalState.isDragging = true;
+    activePointerId = e.pointerId;
+    modalViewport.setPointerCapture(e.pointerId);
+    modalViewport.style.cursor = 'grabbing';
+
+    startX = e.clientX;
+    startY = e.clientY;
+    initTx = modalState.tx;
+    initTy = modalState.ty;
+  });
+
+  modalViewport.addEventListener('pointermove', (e) => {
+    if (!modalState.isDragging || e.pointerId !== activePointerId) return;
+    modalState.tx = initTx + (e.clientX - startX);
+    modalState.ty = initTy + (e.clientY - startY);
+    modalState.isFit = false;
+    applyModalTransform();
+  });
+
+  const stopModalDrag = (e) => {
+    if (modalState.isDragging && e.pointerId === activePointerId) {
+      modalState.isDragging = false;
+      modalViewport.style.cursor = 'grab';
+      try {
+        modalViewport.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+      activePointerId = null;
+    }
+  };
+
+  modalViewport.addEventListener('pointerup', stopModalDrag);
+  modalViewport.addEventListener('pointercancel', stopModalDrag);
+
+  modalViewport.addEventListener('dblclick', (e) => {
+    if (e.target.closest('button')) return;
+    fitModalDiagram();
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('active')) {
+      closeModal();
+    }
+  });
+}
 
 // ========================================================
 // QWebChannel Integration
@@ -629,4 +823,7 @@ document.addEventListener('click', function(e) {
   }
 }, true);
 
-document.addEventListener('DOMContentLoaded', setupChannel);
+document.addEventListener('DOMContentLoaded', () => {
+  setupModalEvents();
+  setupChannel();
+});

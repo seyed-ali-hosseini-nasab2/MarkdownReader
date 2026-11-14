@@ -37,6 +37,7 @@ private slots:
     void zoomIn();
     void zoomOut();
     void resetZoom();
+    void toggleFullScreen();
     void setThemeMode(ThemeMode mode);
     void updateTheme();
     void registerFileAssociation();
